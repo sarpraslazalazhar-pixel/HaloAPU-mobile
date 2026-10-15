@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -31,7 +32,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
   final ScrollController _chatScrollController = ScrollController();
   final FocusNode _chatFocusNode = FocusNode();
   final TextEditingController _messageController = TextEditingController();
-
+  Timer? _pollingTimer;
   bool _isSending = false;
   bool _isLoadingDetail = true;
   bool _isActionLoading = false;
@@ -62,6 +63,26 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
     });
 
     _loadTicketDetail();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted && _tabController.index == 0 && !_isLoadingDetail && !_isSending) {
+        _silentRefreshTicketDetail();
+      }
+    });
+  }
+
+  Future<void> _silentRefreshTicketDetail() async {
+    final result = await _ticketService.getTicketDetail(widget.ticket.id);
+    if (mounted && result['success'] == true && result['data'] is Map) {
+      final data = Map<String, dynamic>.from(result['data'] as Map);
+      final cacheKey = CacheService.ticketDetailKey(widget.ticket.id);
+      await CacheService.put(cacheKey, data, ttlSeconds: 600);
+      _applyDetailData(data);
+    }
   }
 
   void _applyDetailData(Map<String, dynamic> data) {
@@ -465,6 +486,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _tabController.dispose();
     _chatScrollController.dispose();
     _chatFocusNode.dispose();
@@ -1195,31 +1217,35 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
   }
 
   Widget _buildChatTab() {
-    return ListView(
-      controller: _chatScrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      children: [
-        Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(16)),
-            child: const Text('Riwayat Chat', style: TextStyle(fontSize: 10, color: Colors.black54, fontWeight: FontWeight.w500)),
+    return RefreshIndicator(
+      onRefresh: _silentRefreshTicketDetail,
+      child: ListView(
+        controller: _chatScrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        children: [
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(16)),
+              child: const Text('Riwayat Chat', style: TextStyle(fontSize: 10, color: Colors.black54, fontWeight: FontWeight.w500)),
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        if (_logs.isNotEmpty)
-          ..._logs.reversed.map((reply) => ChatBubble(
-            reply: reply,
-            isCurrentUserAdmin: false,
-            requesterName: widget.ticket.requesterName,
-          ))
-        else
-          Container(
-            padding: const EdgeInsets.all(32.0),
-            alignment: Alignment.center,
-            child: const Text('Belum ada pesan', style: TextStyle(color: Colors.grey)),
-          ),
-      ],
+          const SizedBox(height: 16),
+          if (_logs.isNotEmpty)
+            ..._logs.reversed.map((reply) => ChatBubble(
+              reply: reply,
+              isCurrentUserAdmin: false,
+              requesterName: widget.ticket.requesterName,
+            ))
+          else
+            Container(
+              padding: const EdgeInsets.all(32.0),
+              alignment: Alignment.center,
+              child: const Text('Belum ada pesan', style: TextStyle(color: Colors.grey)),
+            ),
+        ],
+      ),
     );
   }
 

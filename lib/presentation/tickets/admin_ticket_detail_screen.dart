@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -41,6 +42,7 @@ class _AdminTicketDetailScreenState
   bool _isTimelineCollapsed = true;
   bool _showQuickRepliesBar = true;
   String _currentAdminName = '';
+  Timer? _pollingTimer;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final ScrollController _chatScrollController = ScrollController();
   final FocusNode _chatFocusNode = FocusNode();
@@ -72,6 +74,26 @@ class _AdminTicketDetailScreenState
 
     _loadTicketDetail();
     _loadUserRole();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted && _tabController.index == 0 && !_isLoadingDetail && !_isSending) {
+        _silentRefreshTicketDetail();
+      }
+    });
+  }
+
+  Future<void> _silentRefreshTicketDetail() async {
+    final result = await _ticketService.getTicketDetail(_ticket.id);
+    if (mounted && result['success'] == true && result['data'] is Map) {
+      final data = Map<String, dynamic>.from(result['data'] as Map);
+      final cacheKey = CacheService.ticketDetailKey(_ticket.id);
+      await CacheService.put(cacheKey, data, ttlSeconds: 600);
+      _applyDetailData(data);
+    }
   }
 
   Future<void> _loadUserRole() async {
@@ -168,6 +190,7 @@ class _AdminTicketDetailScreenState
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _tabController.dispose();
     _chatScrollController.dispose();
     _chatFocusNode.dispose();
@@ -1817,10 +1840,14 @@ class _AdminTicketDetailScreenState
 
     return Container(
       color: const Color(0xFFF8FAFC),
-      child: ListView(
-        controller: _chatScrollController,
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: items,
+      child: RefreshIndicator(
+        onRefresh: _silentRefreshTicketDetail,
+        child: ListView(
+          controller: _chatScrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: items,
+        ),
       ),
     );
   }
