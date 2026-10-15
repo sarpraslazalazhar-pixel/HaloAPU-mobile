@@ -72,15 +72,17 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Prepare iOS build directories
-        run: mkdir -p build/ios/SourcePackages
+      - name: Prepare build directories and configure Flutter
+        run: |
+          flutter config --no-enable-macos-desktop
+          mkdir -p build/ios/SourcePackages build/macos/SourcePackages
 
       - name: Get dependencies
         run: flutter pub get
 
       - name: Build iOS (unsigned)
         run: |
-          mkdir -p build/ios/SourcePackages
+          mkdir -p build/ios/SourcePackages build/macos/SourcePackages
           flutter build ios --release --no-codesign
 
       - name: Package unsigned IPA
