@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:halo_apu_mobile/core/services/attachment_service.dart';
 import 'package:halo_apu_mobile/presentation/widgets/auth_attachment_image.dart';
-import 'package:intl/intl.dart';
+import 'package:halo_apu_mobile/core/utils/date_formatter.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
@@ -1472,7 +1472,7 @@ class _AdminTicketDetailScreenState
               const SizedBox(height: 12),
               _buildDetailRow(Icons.engineering_outlined, 'Ditugaskan Ke', _ticket.assignedTo ?? 'Belum ada teknisi'),
               const SizedBox(height: 12),
-              _buildDetailRow(Icons.calendar_today_outlined, 'Waktu Diajukan', DateFormat('dd MMMM yyyy, HH:mm').format(_ticket.createdAt)),
+              _buildDetailRow(Icons.calendar_today_outlined, 'Waktu Diajukan', formatDateTime(_ticket.createdAt, pattern: 'dd MMMM yyyy, HH:mm')),
               const SizedBox(height: 12),
               _buildDetailRow(Icons.flag_outlined, 'Prioritas', _ticket.priority ?? 'Sedang'),
             ],
@@ -1737,14 +1737,15 @@ class _AdminTicketDetailScreenState
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
-    final checkDate = DateTime(date.year, date.month, date.day);
+    final localDate = date.toLocal();
+    final checkDate = DateTime(localDate.year, localDate.month, localDate.day);
 
     if (checkDate == today) {
       return 'Hari Ini';
     } else if (checkDate == yesterday) {
       return 'Kemarin';
     } else {
-      return DateFormat('dd MMM yyyy').format(date);
+      return formatDateTime(localDate, pattern: 'dd MMM yyyy');
     }
   }
 

@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -175,318 +174,431 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      backgroundColor: const Color(0xFFF0F9FF),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Hubungi Admin', style: TextStyle(color: AppTheme.oceanWater, fontWeight: FontWeight.bold)),
+        scrolledUnderElevation: 0,
+        title: const Text(
+          'Hubungi Admin',
+          style: TextStyle(
+            color: AppTheme.oceanWater,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.oceanWater),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.oceanWater, size: 19),
           onPressed: () => context.pop(),
         ),
       ),
       body: Container(
+        width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFE0F4FE),
-              Color(0xFFF6FAFF),
+              Color(0xFFF0F9FF),
+              Color(0xFFF8FAFC),
             ],
           ),
         ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: -100,
-              left: -100,
-              child: _buildBlob(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0x2600A2E8),
-                    Color(0x1AFEA520),
-                  ],
-                ),
-              ),
-            ),
-            SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.support_agent, size: 80, color: AppTheme.oceanWater),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Kami Siap Membantu!',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blueGrey.shade800,
-                        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. Header / Hero Kompak
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppTheme.oceanWater.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Silakan tulis pesan Anda di bawah ini, admin kami akan segera merespon.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.blueGrey.shade600,
-                        ),
+                      child: const Icon(
+                        Icons.support_agent_rounded,
+                        size: 24,
+                        color: AppTheme.oceanWater,
                       ),
-                      const SizedBox(height: 32),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                          child: Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.7),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: AppTheme.oceanWater.withValues(alpha: 0.08),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppTheme.oceanWater.withValues(alpha: 0.1),
-                                  blurRadius: 25,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                if (!_isLoggedIn) ...[
-                                  const Text(
-                                    'Email Anda (Opsional)',
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextField(
-                                    controller: _emailController,
-                                    keyboardType: TextInputType.emailAddress,
-                                    enabled: !_isLoading,
-                                    decoration: InputDecoration(
-                                      hintText: 'nama@email.com',
-                                      hintStyle: TextStyle(color: Colors.grey.shade400),
-                                      prefixIcon: const Icon(Icons.email_outlined, color: Colors.grey, size: 20),
-                                      filled: true,
-                                      fillColor: Colors.white,
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.grey.shade200),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.grey.shade200),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                ],
-                                const Text(
-                                  'Subjek (Opsional)',
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                                ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  controller: _subjectController,
-                                  enabled: !_isLoading,
-                                  decoration: InputDecoration(
-                                    hintText: 'Misal: Kendala Akun / Pertanyaan',
-                                    hintStyle: TextStyle(color: Colors.grey.shade400),
-                                    prefixIcon: const Icon(Icons.title, color: Colors.grey, size: 20),
-                                    filled: true,
-                                    fillColor: Colors.white,
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide(color: Colors.grey.shade200),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide(color: Colors.grey.shade200),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'Pesan Anda',
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                                ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  controller: _messageController,
-                                  enabled: !_isLoading,
-                                  maxLines: 5,
-                                  decoration: InputDecoration(
-                                    hintText: 'Tuliskan kendala atau pertanyaan Anda di sini...',
-                                    hintStyle: TextStyle(color: Colors.grey.shade400),
-                                    filled: true,
-                                    fillColor: Colors.white,
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide(color: Colors.grey.shade200),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide(color: Colors.grey.shade200),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                ElevatedButton(
-                                  onPressed: _isLoading ? null : _handleSendMessage,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.oceanWater,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    elevation: 8,
-                                    shadowColor: AppTheme.oceanWater.withValues(alpha: 0.5),
-                                  ),
-                                  child: _isLoading
-                                      ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                          ),
-                                        )
-                                      : const Text('Kirim Pesan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Divider(
-                              color: Colors.blueGrey.shade200.withValues(alpha: 0.6),
-                              thickness: 1,
+                          Text(
+                            'Bantuan & Layanan Admin',
+                            style: TextStyle(
+                              fontSize: 16.5,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.oceanWater,
+                              letterSpacing: -0.3,
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              'Atau Hubungi Langsung',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.blueGrey.shade600,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Divider(
-                              color: Colors.blueGrey.shade200.withValues(alpha: 0.6),
-                              thickness: 1,
+                          SizedBox(height: 2),
+                          Text(
+                            'Hubungi tim admin Sarpras & IT melalui kanal berikut atau kirim pesan.',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: Colors.black54,
+                              height: 1.25,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _launchWhatsApp,
-                          icon: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 20),
-                          label: const Text(
-                            'Hubungi via WhatsApp',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // 2. Quick Channels (Row 2 Kolom Kompak)
+                Row(
+                  children: [
+                    // WhatsApp Card
+                    Expanded(
+                      child: Material(
+                        color: const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: _launchWhatsApp,
+                          child: Container(
+                            height: 52,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFBBF7D0)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.chat_bubble_rounded,
+                                    size: 16,
+                                    color: Color(0xFF16A34A),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'WhatsApp',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF16A34A),
+                                        ),
+                                      ),
+                                      Text(
+                                        'Chat Langsung',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF25D366),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                            shape: RoundedRectangleBorder(
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+
+                    // Email Card
+                    Expanded(
+                      child: Material(
+                        color: const Color(0xFFF0F9FF),
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: _launchEmail,
+                          child: Container(
+                            height: 52,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFBAE6FD)),
                             ),
-                            elevation: 2,
-                            shadowColor: const Color(0xFF25D366).withValues(alpha: 0.35),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.email_rounded,
+                                    size: 16,
+                                    color: Color(0xFF0284C7),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Email Sarpras',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF0284C7),
+                                        ),
+                                      ),
+                                      Text(
+                                        'Kirim Surat',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // 3. Divider Label Ringkas
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 1,
+                        color: const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Text(
+                        'atau tulis pesan tiket',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.blueGrey.shade400,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        height: 1,
+                        color: const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // 4. Card Form Pesan Terpadu
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!_isLoggedIn) ...[
+                        TextField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          enabled: !_isLoading,
+                          style: const TextStyle(fontSize: 13),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                            hintText: 'Email Anda (opsional)',
+                            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                            prefixIcon: const Icon(Icons.alternate_email_rounded, size: 18, color: Color(0xFF64748B)),
+                            prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: AppTheme.oceanWater, width: 1.5),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      TextField(
+                        controller: _subjectController,
+                        enabled: !_isLoading,
+                        style: const TextStyle(fontSize: 13),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                          hintText: 'Subjek pesan (opsional)',
+                          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                          prefixIcon: const Icon(Icons.short_text_rounded, size: 20, color: Color(0xFF64748B)),
+                          prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: AppTheme.oceanWater, width: 1.5),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _messageController,
+                        enabled: !_isLoading,
+                        maxLines: 3,
+                        style: const TextStyle(fontSize: 13),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                          hintText: 'Tuliskan kendala atau pertanyaan Anda...',
+                          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                          prefixIcon: const Column(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Padding(
+                                padding: EdgeInsets.only(top: 10, left: 10, right: 8),
+                                child: Icon(Icons.chat_bubble_outline_rounded, size: 18, color: Color(0xFF64748B)),
+                              ),
+                            ],
+                          ),
+                          prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: AppTheme.oceanWater, width: 1.5),
                           ),
                         ),
                       ),
                       const SizedBox(height: 12),
                       SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _launchEmail,
-                          icon: const Icon(Icons.email_outlined, color: AppTheme.oceanWater, size: 20),
-                          label: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                'Kirim ke Email Admin',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.oceanWater,
+                        height: 44,
+                        child: ElevatedButton.icon(
+                          onPressed: _isLoading ? null : _handleSendMessage,
+                          icon: _isLoading
+                              ? const SizedBox.shrink()
+                              : const Icon(Icons.send_rounded, size: 16, color: Colors.white),
+                          label: _isLoading
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Text(
+                                  'Kirim Pesan',
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
                                 ),
-                              ),
-                              Text(
-                                'sarpras@alazharpeduli.or.id',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.normal,
-                                  color: Colors.blueGrey.shade600,
-                                ),
-                              ),
-                            ],
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.white.withValues(alpha: 0.8),
-                            foregroundColor: AppTheme.oceanWater,
-                            side: const BorderSide(color: AppTheme.oceanWater, width: 1.5),
-                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.oceanWater,
+                            foregroundColor: Colors.white,
+                            elevation: 2,
+                            shadowColor: AppTheme.oceanWater.withValues(alpha: 0.35),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                             ),
+                            padding: EdgeInsets.zero,
                           ),
                         ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.verified_user_rounded,
+                            size: 13,
+                            color: Colors.grey.shade500,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Pesan otomatis tercatat di sistem tiket admin',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-
-  Widget _buildBlob({required Gradient gradient}) {
-    return ImageFiltered(
-      imageFilter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
-      child: Container(
-        width: 300,
-        height: 300,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: gradient,
+          ),
         ),
       ),
     );

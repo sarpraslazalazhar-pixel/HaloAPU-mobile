@@ -54,6 +54,25 @@ void main() {
       const extUrl = 'https://example.com/files/manual.pdf';
       expect(AttachmentService.resolveAttachmentUrl(extUrl), extUrl);
     });
+
+    test('resolves avatars relative and absolute paths to serve endpoint', () {
+      expect(
+        AttachmentService.resolveAttachmentUrl('avatars/user_1.jpg'),
+        '${ApiConfig.baseUrl}/attachments/serve?path=avatars/user_1.jpg',
+      );
+      expect(
+        AttachmentService.resolveAttachmentUrl('/storage/avatars/user_1.jpg'),
+        '${ApiConfig.baseUrl}/attachments/serve?path=avatars/user_1.jpg',
+      );
+      expect(
+        AttachmentService.resolveAttachmentUrl('https://dev.haloapu.id/api/attachments/serve?path=avatars/user_1.jpg'),
+        '${ApiConfig.baseUrl}/attachments/serve?path=avatars/user_1.jpg',
+      );
+      expect(
+        AttachmentService.resolveAttachmentUrl('https://dev.haloapu.id/storage/avatars/user_1.jpg'),
+        '${ApiConfig.baseUrl}/attachments/serve?path=avatars/user_1.jpg',
+      );
+    });
   });
 
   group('AttachmentService.isImage', () {
@@ -73,6 +92,17 @@ void main() {
       expect(AttachmentService.isImage('file_without_ext', 'image/jpeg'), true);
       expect(AttachmentService.isImage('file_without_ext', 'image/png'), true);
       expect(AttachmentService.isImage('document.pdf', 'application/pdf'), false);
+    });
+  });
+
+  group('AttachmentService token cache', () {
+    test('manages cached token synchronously and allows clear', () {
+      AttachmentService.clearTokenCache();
+      expect(AttachmentService.cachedToken, isNull);
+      AttachmentService.setCachedToken('test_token_123');
+      expect(AttachmentService.cachedToken, 'test_token_123');
+      AttachmentService.clearTokenCache();
+      expect(AttachmentService.cachedToken, isNull);
     });
   });
 }

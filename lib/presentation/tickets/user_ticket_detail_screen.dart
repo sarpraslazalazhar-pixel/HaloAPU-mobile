@@ -6,7 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:halo_apu_mobile/core/services/attachment_service.dart';
 import 'package:halo_apu_mobile/presentation/widgets/auth_attachment_image.dart';
-import 'package:intl/intl.dart';
+import 'package:halo_apu_mobile/core/utils/date_formatter.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
 import 'package:halo_apu_mobile/core/services/ticket_service.dart';
 import 'package:halo_apu_mobile/core/services/cache_service.dart';
@@ -95,7 +95,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
             id: item['id'] is int ? item['id'] : int.tryParse(item['id'].toString()) ?? 0,
             action: item['action'] ?? item['aksi'] ?? '',
             note: item['note'] ?? item['catatan'] ?? '',
-            createdAt: DateTime.tryParse(item['createdAt']?.toString() ?? '') ?? DateTime.now(),
+            createdAt: parseToLocal(item['createdAt'] ?? item['created_at']),
             adminName: item['adminName']?.toString(),
             isFromAdmin: item['isFromAdmin'] == true,
             attachments: item['attachments'] is List
@@ -834,7 +834,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
               const SizedBox(height: 12),
               _buildDetailRow(Icons.engineering_outlined, 'Ditugaskan Ke', _currentTicket.assignedTo ?? 'Belum ada teknisi'),
               const SizedBox(height: 12),
-              _buildDetailRow(Icons.calendar_today_outlined, 'Waktu Diajukan', DateFormat('dd MMMM yyyy, HH:mm').format(_currentTicket.createdAt)),
+              _buildDetailRow(Icons.calendar_today_outlined, 'Waktu Diajukan', formatDateTime(_currentTicket.createdAt, pattern: 'dd MMMM yyyy, HH:mm')),
             ],
           ),
         ),

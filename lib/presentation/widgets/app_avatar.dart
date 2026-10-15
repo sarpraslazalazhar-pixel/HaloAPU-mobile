@@ -1,9 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../../core/config/api_config.dart';
 
-class AppAvatar extends StatelessWidget {
+import '../../core/config/api_config.dart';
+import '../../core/services/attachment_service.dart';
+
+class AppAvatar extends StatefulWidget {
   final String? imageUrl;
   final String? imagePath;
   final Uint8List? imageBytes;
@@ -26,6 +28,38 @@ class AppAvatar extends StatelessWidget {
     this.showBorder = true,
     this.borderColor,
   });
+
+  @override
+  State<AppAvatar> createState() => _AppAvatarState();
+}
+
+class _AppAvatarState extends State<AppAvatar> {
+  String? _token;
+
+  @override
+  void initState() {
+    super.initState();
+    _token = AttachmentService.cachedToken;
+    _fetchToken();
+  }
+
+  @override
+  void didUpdateWidget(covariant AppAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_token == null || _token!.isEmpty) {
+      _token = AttachmentService.cachedToken;
+      _fetchToken();
+    }
+  }
+
+  Future<void> _fetchToken() async {
+    final token = await AttachmentService.getAuthToken();
+    if (mounted && token != _token) {
+      setState(() {
+        _token = token;
+      });
+    }
+  }
 
   String _getInitials(String input) {
     final trimmed = input.trim();
@@ -79,52 +113,35 @@ class AppAvatar extends StatelessWidget {
       return trimmed;
     }
 
+    final resolved = AttachmentService.resolveAttachmentUrl(trimmed);
+    if (resolved.isNotEmpty) {
+      return resolved;
+    }
+
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return trimmed;
     }
 
-    // Resolve URL relatif dengan base host backend (potong /api di akhir jika ada)
-    var baseHost = ApiConfig.baseUrl.replaceAll(RegExp(r'/api/?$'), '');
-    if (baseHost.endsWith('/')) {
-      baseHost = baseHost.substring(0, baseHost.length - 1);
-    }
+    final baseUrl = ApiConfig.baseUrl.endsWith('/')
+        ? ApiConfig.baseUrl.substring(0, ApiConfig.baseUrl.length - 1)
+        : ApiConfig.baseUrl;
 
-    if (trimmed.startsWith('/storage/')) {
-      return '$baseHost$trimmed';
-    }
-
-    if (trimmed.startsWith('storage/')) {
-      return '$baseHost/$trimmed';
-    }
-
-    if (trimmed.contains('/attachments/serve') || trimmed.contains('attachments/serve')) {
-      final clean = trimmed.startsWith('/') ? trimmed : '/$trimmed';
-      return '${ApiConfig.baseUrl}$clean';
-    }
-
-    if (trimmed.startsWith('avatars/') || trimmed.startsWith('ticket-attachments/')) {
-      return '$baseHost/storage/$trimmed';
-    }
-
-    if (trimmed.startsWith('/')) {
-      return '$baseHost$trimmed';
-    }
-
-    return '$baseHost/$trimmed';
+    final clean = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
+    return '$baseUrl/attachments/serve?path=$clean';
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = radius * 2;
-    final initials = _getInitials(name);
-    final calculatedFontSize = fontSize ?? (radius * 0.78);
-    final resolvedUrl = _resolveImageUrl(imageUrl ?? imagePath);
+    final size = widget.radius * 2;
+    final initials = _getInitials(widget.name);
+    final calculatedFontSize = widget.fontSize ?? (widget.radius * 0.78);
+    final resolvedUrl = _resolveImageUrl(widget.imageUrl ?? widget.imagePath);
 
     Widget avatarChild;
 
-    if (imageBytes != null && imageBytes!.isNotEmpty) {
+    if (widget.imageBytes != null && widget.imageBytes!.isNotEmpty) {
       avatarChild = Image.memory(
-        imageBytes!,
+        widget.imageBytes!,
         width: size,
         height: size,
         fit: BoxFit.cover,
@@ -134,16 +151,28 @@ class AppAvatar extends StatelessWidget {
         (resolvedUrl.startsWith('http://') ||
          resolvedUrl.startsWith('https://') ||
          resolvedUrl.startsWith('blob:'))) {
-      avatarChild = CachedNetworkImage(
-        imageUrl: resolvedUrl,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => _buildInitialsPlaceholder(initials, calculatedFontSize),
-        errorWidget: (context, url, error) => _buildInitialsPlaceholder(initials, calculatedFontSize),
-        fadeInDuration: const Duration(milliseconds: 200),
-        fadeOutDuration: const Duration(milliseconds: 200),
-      );
+      final token = _token ?? AttachmentService.cachedToken;
+      final isProtected = resolvedUrl.contains('/attachments/serve');
+
+      if (isProtected && (token == null || token.isEmpty)) {
+        avatarChild = _buildInitialsPlaceholder(initials, calculatedFontSize);
+      } else {
+        final headers = (token != null && token.isNotEmpty)
+            ? {'Authorization': 'Bearer $token'}
+            : null;
+
+        avatarChild = CachedNetworkImage(
+          imageUrl: resolvedUrl,
+          httpHeaders: headers,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => _buildInitialsPlaceholder(initials, calculatedFontSize),
+          errorWidget: (context, url, error) => _buildInitialsPlaceholder(initials, calculatedFontSize),
+          fadeInDuration: const Duration(milliseconds: 200),
+          fadeOutDuration: const Duration(milliseconds: 200),
+        );
+      }
     } else {
       avatarChild = _buildInitialsPlaceholder(initials, calculatedFontSize);
     }
@@ -153,9 +182,9 @@ class AppAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: showBorder
+        border: widget.showBorder
             ? Border.all(
-                color: borderColor ?? Colors.white,
+                color: widget.borderColor ?? Colors.white,
                 width: 2.0,
               )
             : null,
@@ -170,9 +199,9 @@ class AppAvatar extends StatelessWidget {
       child: ClipOval(child: avatarChild),
     );
 
-    if (onTap != null) {
+    if (widget.onTap != null) {
       return InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
         customBorder: const CircleBorder(),
         child: content,
       );
@@ -185,7 +214,7 @@ class AppAvatar extends StatelessWidget {
     final clean = initials.trim().replaceAll('?', '');
     return Container(
       decoration: BoxDecoration(
-        gradient: _getGradientForName(name),
+        gradient: _getGradientForName(widget.name),
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,

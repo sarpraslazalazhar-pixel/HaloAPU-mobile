@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
+import 'package:halo_apu_mobile/core/services/attachment_service.dart';
 import 'package:halo_apu_mobile/data/repositories/profile_repository.dart';
 import 'package:halo_apu_mobile/presentation/profile/providers/user_profile_provider.dart';
 
@@ -107,6 +108,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       final isAuth = token != null && token.isNotEmpty;
 
       if (isAuth) {
+        AttachmentService.setCachedToken(token);
         final role = await _storage.read(key: 'user_role');
         final profileRepo = ref.read(profileRepositoryProvider);
         final profileRes = await profileRepo.getProfile();
@@ -352,7 +354,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'VERSI 1.0 • © 2026 HALO APU',
+                        'VERSI 1.0 • © 2026 LAZWAF AL AZHAR',
                         style: TextStyle(
                           fontSize: 11,
                           letterSpacing: 1.5,

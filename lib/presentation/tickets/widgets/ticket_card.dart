@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:halo_apu_mobile/core/utils/date_formatter.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
 
@@ -324,7 +324,7 @@ class TicketCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          DateFormat('dd MMM yyyy, HH:mm').format(ticket.createdAt),
+                          formatDateTime(ticket.createdAt),
                           style: const TextStyle(
                             color: Color(0xFF94A3B8),
                             fontSize: 11.5,

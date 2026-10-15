@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
-import 'package:intl/intl.dart';
+import 'package:halo_apu_mobile/core/utils/date_formatter.dart';
 
 class TicketStatusTimeline extends StatelessWidget {
   final TicketModel ticket;
@@ -248,7 +248,7 @@ class TicketStatusTimeline extends StatelessWidget {
                   // Step 1: Dibuat
                   _buildTimelineStep(
                     title: 'Tiket Dibuat',
-                    subtitle: DateFormat('dd MMM yyyy, HH:mm').format(ticket.createdAt),
+                    subtitle: formatDateTime(ticket.createdAt),
                     isCompleted: true,
                     isActive: status == TicketStatus.open,
                   ),

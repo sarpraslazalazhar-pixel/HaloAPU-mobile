@@ -63,42 +63,9 @@ class DashboardRepository {
     final List<TicketModel> list = [];
     for (final t in rawTickets) {
       try {
-        final map = Map<String, dynamic>.from(t as Map);
-        map['description'] ??= '';
-        map['requesterName'] ??= 'Pengguna';
-        map['category'] ??= 'Umum';
-
-        final rawStatus = map['status']?.toString().toLowerCase() ?? 'open';
-        switch (rawStatus) {
-          case 'on_proses':
-          case 'processing':
-          case 'assigned':
-            map['status'] = 'on_proses';
-            break;
-          case 'solve':
-          case 'solved':
-          case 'selesai':
-            map['status'] = 'solve';
-            break;
-          case 'reject':
-          case 'rejected':
-            map['status'] = 'reject';
-            break;
-          case 'dibatalkan':
-          case 'cancelled':
-            map['status'] = 'dibatalkan';
-            break;
-          case 'need_revision':
-            map['status'] = 'need_revision';
-            break;
-          case 'pending':
-            map['status'] = 'pending';
-            break;
-          default:
-            map['status'] = 'open';
+        if (t is Map) {
+          list.add(TicketModel.safeFromJson(Map<String, dynamic>.from(t)));
         }
-
-        list.add(TicketModel.fromJson(map));
       } catch (_) {}
     }
     return list;

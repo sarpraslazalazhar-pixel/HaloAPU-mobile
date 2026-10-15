@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:halo_apu_mobile/core/utils/date_formatter.dart';
 
 part 'ticket_model.freezed.dart';
 part 'ticket_model.g.dart';
@@ -38,7 +39,8 @@ sealed class TicketModel with _$TicketModel {
     map['description'] ??= '';
     map['requesterName'] ??= 'Pengguna';
     map['category'] ??= 'Umum';
-
+    final rawCreatedAt = map['createdAt'] ?? map['created_at'];
+    map['createdAt'] = parseToLocal(rawCreatedAt).toIso8601String();
     const extraKeys = [
       'priority',
       'dikembalikan_at',
@@ -128,7 +130,12 @@ sealed class TicketReply with _$TicketReply {
     List<Map<String, dynamic>>? attachments,
   }) = _TicketReply;
 
-  factory TicketReply.fromJson(Map<String, dynamic> json) => _$TicketReplyFromJson(json);
+  factory TicketReply.fromJson(Map<String, dynamic> json) {
+    final map = Map<String, dynamic>.from(json);
+    final rawCreatedAt = map['createdAt'] ?? map['created_at'];
+    map['createdAt'] = parseToLocal(rawCreatedAt).toIso8601String();
+    return _$TicketReplyFromJson(map);
+  }
 }
 
 extension TicketModelX on TicketModel {

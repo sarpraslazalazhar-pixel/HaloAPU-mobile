@@ -13,6 +13,14 @@ class AttachmentService {
   static String? _cachedToken;
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
+  /// Mengambil token autentikasi yang tersimpan di memori secara sinkron jika tersedia.
+  static String? get cachedToken => _cachedToken;
+
+  /// Menyimpan token autentikasi ke cache memori.
+  static void setCachedToken(String? token) {
+    _cachedToken = token;
+  }
+
   /// Mengambil token autentikasi dari memori (jika ada) atau secure storage.
   static Future<String?> getAuthToken({bool forceRefresh = false}) async {
     if (!forceRefresh && _cachedToken != null && _cachedToken!.isNotEmpty) {
@@ -88,6 +96,11 @@ class AttachmentService {
             pathParam = raw.split('/attachments/serve/').last;
           }
         }
+        if (pathParam.contains('%')) {
+          try {
+            pathParam = Uri.decodeComponent(pathParam);
+          } catch (_) {}
+        }
         final clean = _cleanPath(pathParam.isNotEmpty ? pathParam : raw);
         if (clean.isEmpty) return raw;
         return '$baseUrl/attachments/serve?path=$clean';
@@ -98,6 +111,14 @@ class AttachmentService {
         final clean = _cleanPath(pathAfterStorage);
         if (clean.isEmpty) return raw;
         return '$baseUrl/attachments/serve?path=$clean';
+      }
+
+      if (raw.contains('/avatars/')) {
+        final pathAfterAvatars = 'avatars/${raw.split('/avatars/').last}';
+        final clean = _cleanPath(pathAfterAvatars);
+        if (clean.isNotEmpty) {
+          return '$baseUrl/attachments/serve?path=$clean';
+        }
       }
 
       return raw;

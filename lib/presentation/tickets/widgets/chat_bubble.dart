@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:halo_apu_mobile/core/services/attachment_service.dart';
 import 'package:halo_apu_mobile/presentation/widgets/auth_attachment_image.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
-import 'package:intl/intl.dart';
+import 'package:halo_apu_mobile/core/utils/date_formatter.dart';
 
 class ChatBubble extends StatelessWidget {
   final TicketReply reply;
@@ -162,7 +162,7 @@ class ChatBubble extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Text(
-              DateFormat('HH:mm').format(reply.createdAt.toLocal()),
+              formatDateTime(reply.createdAt, pattern: 'HH:mm'),
               style: TextStyle(fontSize: 9.5, color: Colors.grey.shade500),
             ),
           ],
@@ -400,7 +400,7 @@ class ChatBubble extends StatelessWidget {
                       Align(
                         alignment: Alignment.bottomRight,
                         child: Text(
-                          DateFormat('HH:mm').format(reply.createdAt.toLocal()),
+                          formatDateTime(reply.createdAt, pattern: 'HH:mm'),
                           style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
                         ),
                       ),
@@ -480,7 +480,7 @@ class ChatBubble extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            DateFormat('HH:mm').format(reply.createdAt.toLocal()),
+                            formatDateTime(reply.createdAt, pattern: 'HH:mm'),
                             style: TextStyle(
                               fontSize: 10,
                               color: Colors.white.withValues(alpha: 0.8),
