@@ -61,10 +61,13 @@ jobs:
           path: build/app/outputs/bundle/release/*.aab
 
   build-ios:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Check Xcode version
+        run: xcodebuild -version
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
