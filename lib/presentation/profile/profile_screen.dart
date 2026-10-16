@@ -68,6 +68,28 @@ class ProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           EntranceAnimation(
+            delay: const Duration(milliseconds: 320),
+            child: _MenuSection(
+              items: [
+                _MenuItem(
+                  icon: Icons.help_outline_rounded,
+                  color: AppTheme.oceanWater,
+                  title: 'Pusat Bantuan & FAQ',
+                  subtitle: 'Panduan penggunaan dan tanya jawab',
+                  onTap: () => context.push('/help'),
+                ),
+                _MenuItem(
+                  icon: Icons.support_agent_rounded,
+                  color: const Color(0xFF0284C7),
+                  title: 'Hubungi Admin',
+                  subtitle: 'Kontak WhatsApp, email, dan pesan tiket',
+                  onTap: () => context.push('/contact-admin'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          EntranceAnimation(
             delay: const Duration(milliseconds: 360),
             child: _MenuSection(
               items: [

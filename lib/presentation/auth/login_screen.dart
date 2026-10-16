@@ -526,14 +526,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildFooterIcon(Icons.help_outline, 'Bantuan', () => context.push('/help')),
+                          _buildFooterIcon(Icons.help_outline_rounded, 'Bantuan & FAQ', () => context.push('/help')),
                           const SizedBox(width: 32),
                           _buildFooterIcon(Icons.contact_support_outlined, 'Hubungi Admin', () => context.push('/contact-admin')),
                         ],
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        'VERSI 1.0 • © 2026 LAZWAF AL AZHAR',
+                        'VERSI 1.0.0 • © 2026 HALO APU • Published by LAZWAF AL AZHAR',
                         style: TextStyle(
                           fontSize: 11,
                           letterSpacing: 2,
