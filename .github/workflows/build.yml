@@ -40,26 +40,32 @@ jobs:
       - name: Run unit tests
         run: flutter test
 
-      - name: Build APK (split-per-abi & universal)
-        run: |
-          flutter build apk --split-per-abi --release
-          flutter build apk --release
+      - name: Build APK Staging
+        run: flutter build apk --flavor staging --dart-define=FLAVOR=staging --release
 
-      - name: Build App Bundle
-        run: flutter build appbundle --release
+      - name: Build APK Production
+        run: flutter build apk --flavor production --dart-define=FLAVOR=production --release
 
-      - name: Upload APK artifacts
+      - name: Build AAB Production
+        run: flutter build appbundle --flavor production --dart-define=FLAVOR=production --release
+
+      - name: Upload Staging APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
-          path: build/app/outputs/flutter-apk/*.apk
+          name: android-apk-staging
+          path: build/app/outputs/flutter-apk/*staging*.apk
 
-      - name: Upload AAB artifact
+      - name: Upload Production APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android-bundle
-          path: build/app/outputs/bundle/release/*.aab
+          name: android-apk-production
+          path: build/app/outputs/flutter-apk/*production*.apk
 
+      - name: Upload Production AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-bundle-production
+          path: build/app/outputs/bundle/productionRelease/*.aab
   build-ios:
     runs-on: macos-15
     steps:
@@ -83,20 +89,40 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Build iOS (unsigned)
+      - name: Build iOS Staging (unsigned)
         run: |
           mkdir -p build/ios/SourcePackages build/macos/SourcePackages
-          flutter build ios --release --no-codesign
+          flutter build ios --flavor staging --dart-define=FLAVOR=staging --release --no-codesign
 
-      - name: Package unsigned IPA
+      - name: Package unsigned Staging IPA
         run: |
           cd build/ios/iphoneos
-          mkdir Payload
+          mkdir -p Payload
           cp -r Runner.app Payload/
-          zip -r HaloAPU-iOS-unsigned.ipa Payload
+          zip -r HaloAPU-Staging-iOS-unsigned.ipa Payload
+          rm -rf Payload Runner.app
 
-      - name: Upload iOS IPA artifact
+      - name: Build iOS Production (unsigned)
+        run: |
+          mkdir -p build/ios/SourcePackages build/macos/SourcePackages
+          flutter build ios --flavor production --dart-define=FLAVOR=production --release --no-codesign
+
+      - name: Package unsigned Production IPA
+        run: |
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r HaloAPU-Production-iOS-unsigned.ipa Payload
+          rm -rf Payload
+
+      - name: Upload iOS Staging IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa
-          path: build/ios/iphoneos/HaloAPU-iOS-unsigned.ipa
+          name: ios-ipa-staging
+          path: build/ios/iphoneos/HaloAPU-Staging-iOS-unsigned.ipa
+
+      - name: Upload iOS Production IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa-production
+          path: build/ios/iphoneos/HaloAPU-Production-iOS-unsigned.ipa

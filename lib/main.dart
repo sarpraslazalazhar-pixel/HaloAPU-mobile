@@ -8,6 +8,7 @@ import 'package:halo_apu_mobile/core/services/push_notification_service.dart';
 import 'package:halo_apu_mobile/core/services/pending_ticket_service.dart';
 import 'package:halo_apu_mobile/core/config/api_config.dart';
 import 'package:halo_apu_mobile/core/services/cache_service.dart';
+import 'package:halo_apu_mobile/core/config/app_flavor.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -134,11 +135,23 @@ class HaloApuApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Halo APU Mobile',
+    Widget app = MaterialApp.router(
+      title: FlavorConfig.appTitle,
       theme: AppTheme.lightTheme,
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
     );
+
+    if (FlavorConfig.isStaging) {
+      app = Banner(
+        message: 'STAGING',
+        location: BannerLocation.topEnd,
+        color: AppTheme.warning,
+        textDirection: TextDirection.ltr,
+        child: app,
+      );
+    }
+
+    return app;
   }
 }

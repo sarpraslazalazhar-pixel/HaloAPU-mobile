@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/config/app_flavor.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/biometric_service.dart';
@@ -121,10 +122,10 @@ class AdminSettingsScreen extends ConsumerWidget {
                     icon: Icons.language_rounded,
                     color: AppTheme.oceanWater,
                     title: 'Buka Halo APU Web',
-                    subtitle: 'Kelola penuh via dev.haloapu.id',
+                    subtitle: 'Kelola penuh via ${FlavorConfig.webUrl.replaceFirst("https://", "")}',
                     onTap: () async {
                       await launchUrl(
-                        Uri.parse('https://dev.haloapu.id'),
+                        Uri.parse(FlavorConfig.webUrl),
                         mode: LaunchMode.externalApplication,
                       );
                     },

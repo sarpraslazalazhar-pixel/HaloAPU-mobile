@@ -1,0 +1,4 @@
+#include "Generated.xcconfig"
+FLUTTER_FLAVOR=production
+PRODUCT_BUNDLE_IDENTIFIER=id.haloapu.haloApuMobile
+DISPLAY_NAME=Halo APU

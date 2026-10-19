@@ -29,6 +29,20 @@ android {
         multiDexEnabled = true
     }
 
+    flavorDimensions += "environment"
+
+    productFlavors {
+        create("staging") {
+            dimension = "environment"
+            applicationIdSuffix = ".staging"
+            resValue("string", "app_name", "Halo APU Staging")
+        }
+        create("production") {
+            dimension = "environment"
+            resValue("string", "app_name", "Halo APU")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
