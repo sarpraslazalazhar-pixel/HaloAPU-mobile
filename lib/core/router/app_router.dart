@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 import 'package:halo_apu_mobile/presentation/splash/splash_screen.dart';
 import 'package:halo_apu_mobile/presentation/auth/login_screen.dart';
 import 'package:halo_apu_mobile/presentation/auth/forgot_password_screen.dart';
@@ -52,23 +52,22 @@ Page<void> _fadeSlidePage(GoRouterState state, Widget child) {
 final appRouter = GoRouter(
   initialLocation: '/splash',
   redirect: (context, state) async {
-    const storage = FlutterSecureStorage();
-    final token = await storage.read(key: 'auth_token');
-    final isAuth = token != null && token.isNotEmpty;
-    final isPublicRoute = state.matchedLocation == '/splash' ||
-        state.matchedLocation == '/login' ||
-        state.matchedLocation == '/forgot-password' ||
-        state.matchedLocation == '/help' ||
-        state.matchedLocation == '/contact-admin';
-
-    // 1. Biarkan /splash melakukan inisialisasi dan routing animasinya sendiri
+    // 1. Fast-path: Biarkan /splash langsung lewat tanpa menunggu secure storage!
     if (state.matchedLocation == '/splash') {
       return null;
     }
 
+    final isPublicRoute = state.matchedLocation == '/login' ||
+        state.matchedLocation == '/forgot-password' ||
+        state.matchedLocation == '/help' ||
+        state.matchedLocation == '/contact-admin';
+
+    final token = await SafeSecureStorage.read('auth_token');
+    final isAuth = token != null && token.isNotEmpty;
+
     // 2. Jika sudah punya sesi login dan membuka /login, langsung ke dashboard
     if (isAuth && state.matchedLocation == '/login') {
-      final role = await storage.read(key: 'user_role');
+      final role = await SafeSecureStorage.read('user_role');
       if (role == 'admin') {
         return '/dashboard/admin';
       } else {

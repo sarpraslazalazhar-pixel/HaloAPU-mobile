@@ -42,15 +42,25 @@ class PushNotificationService {
     if (_isInitialized) return;
 
     try {
-      // 1. Inisialisasi Firebase App jika belum
+      // 1. Inisialisasi Firebase App jika belum (dengan timeout 3 detik)
+      bool hasFirebase = false;
       try {
-        await Firebase.initializeApp();
+        if (Firebase.apps.isEmpty) {
+          await Firebase.initializeApp().timeout(const Duration(seconds: 3));
+        }
+        hasFirebase = Firebase.apps.isNotEmpty;
       } catch (e) {
         debugPrint('Firebase already initialized or initialization error: $e');
       }
 
-      // 2. Setup Background Handler
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      // 2. Setup Background Handler jika Firebase tersedia
+      if (hasFirebase) {
+        try {
+          FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+        } catch (e) {
+          debugPrint('FCM background message registration error: $e');
+        }
+      }
 
       // 3. Inisialisasi Local Notifications
       const AndroidInitializationSettings androidSettings =
@@ -80,52 +90,54 @@ class PushNotificationService {
             }
           }
         },
-      );
+      ).timeout(const Duration(seconds: 2));
 
       // 4. Create Android Notification Channel
       final androidPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
-        await androidPlugin.createNotificationChannel(_channel);
+        await androidPlugin.createNotificationChannel(_channel).timeout(const Duration(seconds: 2));
       }
 
-      // 5. Setup Foreground Notification Presentation Options
-      await FirebaseMessaging.instance
-          .setForegroundNotificationPresentationOptions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      // 5-9. Setup FCM listener hanya jika Firebase tersedia
+      if (hasFirebase) {
+        try {
+          await FirebaseMessaging.instance
+              .setForegroundNotificationPresentationOptions(
+            alert: true,
+            badge: true,
+            sound: true,
+          ).timeout(const Duration(seconds: 2));
 
-      // 6. Listener Foreground Messages (Saat aplikasi dibuka)
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        debugPrint('FCM Foreground message: ${message.notification?.title}');
-        _showLocalNotification(message);
-        onNotificationReceived?.call();
-      });
+          FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+            debugPrint('FCM Foreground message: ${message.notification?.title}');
+            _showLocalNotification(message);
+            onNotificationReceived?.call();
+          });
 
-      // 7. Listener saat notifikasi diklik ketika aplikasi di background
-      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        debugPrint('FCM Notification tapped from background: ${message.data}');
-        _handleNotificationData(message.data);
-      });
+          FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+            debugPrint('FCM Notification tapped from background: ${message.data}');
+            _handleNotificationData(message.data);
+          });
 
-      // 8. Cek apakah aplikasi dibuka dari kondisi terminated oleh notifikasi
-      final RemoteMessage? initialMessage =
-          await FirebaseMessaging.instance.getInitialMessage();
-      if (initialMessage != null) {
-        debugPrint('FCM Initial message found: ${initialMessage.data}');
-        Future.delayed(const Duration(milliseconds: 800), () {
-          _handleNotificationData(initialMessage.data);
-        });
+          final RemoteMessage? initialMessage =
+              await FirebaseMessaging.instance.getInitialMessage().timeout(const Duration(seconds: 2));
+          if (initialMessage != null) {
+            debugPrint('FCM Initial message found: ${initialMessage.data}');
+            Future.delayed(const Duration(milliseconds: 800), () {
+              _handleNotificationData(initialMessage.data);
+            });
+          }
+
+          FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+            debugPrint('FCM Token refreshed: $newToken');
+            syncFcmTokenWithBackend(token: newToken);
+          });
+        } catch (e) {
+          debugPrint('FCM listeners setup error: $e');
+        }
       }
-
-      // 9. Listener perubahan token FCM
-      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-        debugPrint('FCM Token refreshed: $newToken');
-        syncFcmTokenWithBackend(token: newToken);
-      });
 
       // 10. Mulai Real-time Poller otomatis
       startRealtimePoller();

@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../storage/secure_storage_helper.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -11,7 +11,6 @@ class AttachmentService {
   AttachmentService._();
 
   static String? _cachedToken;
-  static const FlutterSecureStorage _storage = FlutterSecureStorage();
 
   /// Mengambil token autentikasi yang tersimpan di memori secara sinkron jika tersedia.
   static String? get cachedToken => _cachedToken;
@@ -27,7 +26,7 @@ class AttachmentService {
       return _cachedToken;
     }
     try {
-      _cachedToken = await _storage.read(key: 'auth_token');
+      _cachedToken = await SafeSecureStorage.read('auth_token');
     } catch (_) {
       _cachedToken = null;
     }

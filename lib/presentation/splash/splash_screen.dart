@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
+import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/core/services/attachment_service.dart';
 import 'package:halo_apu_mobile/data/repositories/profile_repository.dart';
@@ -25,10 +25,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   late Animation<double> _textFadeAnimation;
   late Animation<double> _taglineFadeAnimation;
 
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  Timer? _safetyTimer;
   String? _targetRoute;
   bool _isInitCompleted = false;
-
+  bool _isNavigated = false;
   @override
   void initState() {
     super.initState();
@@ -92,6 +92,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // 3. Jalankan inisialisasi & lazy loading data di latar belakang
     _startParallelInit();
     _controller.forward();
+
+    // Safety fallback: pastikan berpindah maksimal dalam 2.5 detik apa pun yang terjadi
+    _safetyTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (mounted && !_isNavigated) {
+        _isNavigated = true;
+        _isInitCompleted = true;
+        context.go(_targetRoute ?? '/login');
+      }
+    });
   }
 
   @override
@@ -104,16 +113,22 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   /// Pengecekan sesi & validasi token dilakukan paralel bersamaan dengan animasi
   Future<void> _startParallelInit() async {
     try {
-      final token = await _storage.read(key: 'auth_token');
+      final token = await SafeSecureStorage.read('auth_token');
       final isAuth = token != null && token.isNotEmpty;
 
       if (isAuth) {
         AttachmentService.setCachedToken(token);
-        final role = await _storage.read(key: 'user_role');
+        final role = await SafeSecureStorage.read('user_role');
         final profileRepo = ref.read(profileRepositoryProvider);
-        final profileRes = await profileRepo.getProfile();
+        
+        Map<String, dynamic>? profileRes;
+        try {
+          profileRes = await profileRepo.getProfile().timeout(const Duration(seconds: 2));
+        } catch (e) {
+          debugPrint('Profile fetch timeout/error during splash: $e');
+        }
 
-        if (profileRes['success'] == true) {
+        if (profileRes != null && profileRes['success'] == true) {
           // Sesi valid 100%!
           if (role == 'admin') {
             ref.read(adminProfileProvider.notifier).refresh();
@@ -122,13 +137,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             ref.read(userProfileProvider.notifier).refresh();
             _targetRoute = '/dashboard/user';
           }
-        } else if (profileRes['statusCode'] == 401 ||
+        } else if (profileRes != null && (profileRes['statusCode'] == 401 ||
             profileRes['message'].toString().toLowerCase().contains('unauthenticated') ||
-            profileRes['message'].toString().toLowerCase().contains('sesi telah berakhir')) {
+            profileRes['message'].toString().toLowerCase().contains('sesi telah berakhir'))) {
           // Token kadaluarsa -> bersihkan sesi aktif & arahkan ke login
-          await _storage.delete(key: 'auth_token');
-          await _storage.delete(key: 'user_data');
-          await _storage.delete(key: 'user_role');
+          await SafeSecureStorage.delete('auth_token');
+          await SafeSecureStorage.delete('user_data');
+          await SafeSecureStorage.delete('user_role');
           _targetRoute = '/login';
         } else {
           // Kasus offline/tidak ada internet -> tetap izinkan masuk dashboard dengan cache
@@ -150,6 +165,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   void _checkAndNavigate() {
+    if (_isNavigated) return;
     if (_isInitCompleted && _controller.isCompleted) {
       _navigateToTarget();
     } else {
@@ -162,12 +178,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   void _navigateToTarget() {
-    if (!mounted) return;
+    if (!mounted || _isNavigated) return;
+    _isNavigated = true;
+    _safetyTimer?.cancel();
     context.go(_targetRoute ?? '/login');
   }
 
   @override
   void dispose() {
+    _safetyTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }

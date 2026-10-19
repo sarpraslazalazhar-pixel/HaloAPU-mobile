@@ -16,18 +16,22 @@ void main() async {
   // Load saved API configuration
   await ApiConfig.loadSavedBaseUrl();
 
-  // Initialize Push Notifications (Firebase)
-  await PushNotificationService.init();
+  // Initialize Hive for local storage safely
+  try {
+    await Hive.initFlutter();
+    await Hive.openBox('ticket_drafts');
+    await PendingTicketService.init();
+  } catch (e) {
+    debugPrint('Hive init error: $e');
+  }
 
-  // Initialize Hive for local storage (drafts, etc)
-  await Hive.initFlutter();
-  await Hive.openBox('ticket_drafts');
-  await PendingTicketService.init();
-
-  // Initialize API response cache & cleanup expired entries
-  await CacheService.init();
-  await CacheService.cleanup();
-
+  // Initialize API response cache & cleanup
+  try {
+    await CacheService.init();
+    await CacheService.cleanup();
+  } catch (e) {
+    debugPrint('CacheService init error: $e');
+  }
   // Custom user-friendly Error Widget (Mencegah Layar Merah / Crash Screen)
   ErrorWidget.builder = (FlutterErrorDetails details) {
     FlutterError.dumpErrorToConsole(details);
@@ -122,12 +126,16 @@ void main() async {
       ),
     );
   };
-
   runApp(
     const ProviderScope(
       child: HaloApuApp(),
     ),
   );
+
+  // Initialize Push Notifications in background without blocking initial frame
+  PushNotificationService.init().catchError((e) {
+    debugPrint('PushNotificationService background init error: $e');
+  });
 }
 
 class HaloApuApp extends StatelessWidget {

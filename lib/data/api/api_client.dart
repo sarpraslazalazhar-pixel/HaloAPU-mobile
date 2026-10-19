@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/storage/secure_storage_helper.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import '../../core/config/api_config.dart';
 import '../../core/services/attachment_service.dart';
@@ -12,7 +12,6 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 
 class ApiClient {
   late final Dio _dio;
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   ApiClient() {
     _dio = Dio(BaseOptions(
@@ -28,7 +27,7 @@ class ApiClient {
       onRequest: (options, handler) async {
         options.baseUrl = ApiConfig.baseUrl;
         // Otomatis inject auth token jika tersedia di local storage
-        final token = await _storage.read(key: 'auth_token');
+        final token = await SafeSecureStorage.read('auth_token');
         if (token != null && token.isNotEmpty) {
           AttachmentService.setCachedToken(token);
           options.headers['Authorization'] = 'Bearer $token';
@@ -41,10 +40,10 @@ class ApiClient {
 
         if (e.response?.statusCode == 401) {
           // Token tidak valid/kadaluarsa -> bersihkan sesi aktif otomatis
-          _storage.delete(key: 'auth_token');
+          SafeSecureStorage.delete('auth_token');
           AttachmentService.clearTokenCache();
-          _storage.delete(key: 'user_data');
-          _storage.delete(key: 'user_role');
+          SafeSecureStorage.delete('user_data');
+          SafeSecureStorage.delete('user_role');
           errorMessage = 'Sesi telah berakhir. Silakan login kembali.';
         } else if (e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout) {
