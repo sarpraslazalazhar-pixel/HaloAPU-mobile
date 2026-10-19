@@ -315,7 +315,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 context,
                 icon: Icons.monitor_heart_outlined,
                 color: AppTheme.success,
-                label: 'Pantauan Aset',
+                label: 'Jadwal Reservasi',
                 onTap: () => context.push('/monitor'),
               ),
             ],

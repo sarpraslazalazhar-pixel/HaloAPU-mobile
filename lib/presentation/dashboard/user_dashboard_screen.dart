@@ -252,7 +252,7 @@ class _UserDashboardScreenState extends ConsumerState<UserDashboardScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Ketersediaan Aset',
+                        'Jadwal Reservasi',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -261,7 +261,7 @@ class _UserDashboardScreenState extends ConsumerState<UserDashboardScreen> {
                       ),
                       SizedBox(height: 2),
                       Text(
-                        'Cek status dan ketersediaan perangkat dan aset kantor',
+                        'Cek status dan jadwal reservasi ruangan & kendaraan',
                         style: TextStyle(
                           color: Color(0xE6FFFFFF),
                           fontSize: 11.5,

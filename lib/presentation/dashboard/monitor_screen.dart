@@ -47,7 +47,7 @@ class _MonitorScreenState extends ConsumerState<MonitorScreen> {
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          'Daftar Aset',
+                          'List Reservasi',
                           style: TextStyle(
                             color: _selectedIndex == 0 ? Colors.white : Colors.grey.shade700,
                             fontWeight: FontWeight.bold,
@@ -67,7 +67,7 @@ class _MonitorScreenState extends ConsumerState<MonitorScreen> {
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          'Kalender',
+                          'Jadwal Reservasi',
                           style: TextStyle(
                             color: _selectedIndex == 1 ? Colors.white : Colors.grey.shade700,
                             fontWeight: FontWeight.bold,
