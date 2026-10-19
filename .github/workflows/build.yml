@@ -89,6 +89,11 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install
+
       - name: Build iOS Staging (unsigned)
         run: |
           mkdir -p build/ios/SourcePackages build/macos/SourcePackages

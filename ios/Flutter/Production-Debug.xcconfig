@@ -1,4 +1,7 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug-production.xcconfig"
 #include "Generated.xcconfig"
+PODS_ROOT = ${SRCROOT}/Pods
+PODS_PODFILE_DIR_PATH = ${SRCROOT}/.
 FLUTTER_FLAVOR=production
 PRODUCT_BUNDLE_IDENTIFIER=id.haloapu.haloApuMobile
 DISPLAY_NAME=Halo APU
