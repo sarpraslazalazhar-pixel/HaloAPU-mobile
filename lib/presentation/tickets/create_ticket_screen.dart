@@ -16,6 +16,7 @@ import 'package:halo_apu_mobile/presentation/widgets/offline_banner.dart';
 import 'package:halo_apu_mobile/presentation/widgets/image_doodle_screen.dart';
 import 'providers/user_ticket_provider.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
+import 'widgets/asset_booking_schedule_widget.dart';
 
 class CreateTicketScreen extends ConsumerStatefulWidget {
   const CreateTicketScreen({super.key});
@@ -42,6 +43,9 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
   final Map<String, dynamic> _formData = {};
   final Map<String, List<XFile>> _attachmentFiles = {};
   bool _isLoadingFields = false;
+
+  bool _hasScheduleConflict = false;
+  String? _scheduleConflictMessage;
 
   // Submission state
   bool _isSubmitting = false;
@@ -135,10 +139,20 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
             'id': u['id'],
             'nama': u['nama'] ?? u['nama_unit'] ?? 'Unit',
             'deskripsi': u['deskripsi'] ?? '',
-            'sub_units': (u['sub_units'] as List<dynamic>?)?.map<Map<String, dynamic>>((s) => {
-              'id': s['id'],
-              'nama_layanan': s['nama_layanan'] ?? 'Layanan',
-              'deskripsi': s['deskripsi'] ?? '',
+            'sub_units': (u['sub_units'] as List<dynamic>?)?.map<Map<String, dynamic>>((s) {
+              final Map<String, dynamic> sMap = Map<String, dynamic>.from(s as Map);
+              return {
+                ...sMap,
+                'id': s['id'],
+                'nama_layanan': s['nama_layanan'] ?? 'Layanan',
+                'deskripsi': s['deskripsi'] ?? '',
+                'is_monitored': s['is_monitored'] == true || s['is_monitored'] == 1 || s['is_monitored'] == '1',
+                'monitor_kategori': s['monitor_kategori']?.toString(),
+                'monitor_asset_field_id': s['monitor_asset_field_id']?.toString(),
+                'monitor_date_field_id': s['monitor_date_field_id']?.toString(),
+                'monitor_start_field_id': s['monitor_start_field_id']?.toString(),
+                'monitor_end_field_id': s['monitor_end_field_id']?.toString(),
+              };
             }).toList() ?? [],
           }).toList();
         }
@@ -153,6 +167,8 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
       _uploadFields = [];
       _formData.clear();
       _attachmentFiles.clear();
+      _hasScheduleConflict = false;
+      _scheduleConflictMessage = null;
     });
 
     final result = await _ticketService.getFormFields(subUnitId);
@@ -213,6 +229,11 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
     }
 
     if (_currentStep == 1) {
+      if (_hasScheduleConflict) {
+        _showError(_scheduleConflictMessage ?? 'Jadwal bentrok dengan reservasi yang sudah ada!');
+        return;
+      }
+
       for (var field in _formFields) {
         if (field['required'] == true && _isFieldVisible(field)) {
           final val = _formData[field['id']];
@@ -633,18 +654,22 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _nextStep,
+                  onPressed: (_isSubmitting || (_currentStep == 1 && _hasScheduleConflict)) ? null : _nextStep,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     backgroundColor: AppTheme.brilliantBlue,
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    disabledForegroundColor: Colors.grey.shade500,
                     elevation: 0,
                   ),
                   child: _isSubmitting
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : Text(
-                          _currentStep == _totalSteps - 1 ? 'Kirim Tiket' : 'Langkah Selanjutnya',
+                          _currentStep == 1 && _hasScheduleConflict
+                              ? 'Jadwal Bentrok'
+                              : (_currentStep == _totalSteps - 1 ? 'Kirim Tiket' : 'Langkah Selanjutnya'),
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                 ),
@@ -856,20 +881,39 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
       );
     }
 
+    final currentSubUnit = (_selectedUnitIndex != null && _selectedSubUnitIndex != null)
+        ? _units[_selectedUnitIndex!]['sub_units'][_selectedSubUnitIndex!]
+        : null;
+    final isMonitored = currentSubUnit?['is_monitored'] == true;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: Column(
-          key: ValueKey(_formFields.length),
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: _formFields.where((f) => _isFieldVisible(f)).map((field) {
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isMonitored && currentSubUnit != null) ...[
+            AssetBookingScheduleWidget(
+              subUnit: currentSubUnit,
+              formData: _formData,
+              formFields: _formFields,
+              onConflictChanged: (hasConflict, conflictMessage) {
+                if (_hasScheduleConflict != hasConflict || _scheduleConflictMessage != conflictMessage) {
+                  setState(() {
+                    _hasScheduleConflict = hasConflict;
+                    _scheduleConflictMessage = conflictMessage;
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 24),
+          ],
+          ..._formFields.where((f) => _isFieldVisible(f)).map((field) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 24),
               child: _buildDynamicField(field),
             );
-          }).toList(),
-        ),
+          }),
+        ],
       ),
     );
   }
@@ -936,7 +980,7 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
             prefixText: type == 'nominal_rp' ? 'Rp ' : null,
             hintText: 'Ketik angka...',
           ),
-          onChanged: (val) { _formData[id] = val; _saveDraft(); },
+          onChanged: (val) { setState(() { _formData[id] = val; }); _saveDraft(); },
         );
         break;
       case 'tanggal':
@@ -1026,7 +1070,7 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
         inputWidget = TextField(
           maxLines: 4,
           decoration: _inputDecoration().copyWith(hintText: 'Ketik di sini...'),
-          onChanged: (val) { _formData[id] = val; _saveDraft(); },
+          onChanged: (val) { setState(() { _formData[id] = val; }); _saveDraft(); },
         );
         break;
       case 'teks_pendek':
@@ -1035,7 +1079,7 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
         inputWidget = TextField(
           maxLines: 1,
           decoration: _inputDecoration().copyWith(hintText: 'Ketik di sini...'),
-          onChanged: (val) { _formData[id] = val; _saveDraft(); },
+          onChanged: (val) { setState(() { _formData[id] = val; }); _saveDraft(); },
         );
     }
 

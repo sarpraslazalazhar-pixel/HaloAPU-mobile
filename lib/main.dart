@@ -143,23 +143,22 @@ class HaloApuApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget app = MaterialApp.router(
+    return MaterialApp.router(
       title: FlavorConfig.appTitle,
       theme: AppTheme.lightTheme,
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        if (FlavorConfig.isStaging && child != null) {
+          return Banner(
+            message: 'STAGING',
+            location: BannerLocation.topEnd,
+            color: AppTheme.warning,
+            child: child,
+          );
+        }
+        return child ?? const SizedBox.shrink();
+      },
     );
-
-    if (FlavorConfig.isStaging) {
-      app = Banner(
-        message: 'STAGING',
-        location: BannerLocation.topEnd,
-        color: AppTheme.warning,
-        textDirection: TextDirection.ltr,
-        child: app,
-      );
-    }
-
-    return app;
   }
 }
