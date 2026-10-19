@@ -533,7 +533,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        'VERSI 1.0.0 • © 2026 HALO APU • Published by LAZWAF AL AZHAR',
+                        'VERSI 1.0.0 • © 2026 Al Azhar peduli',
                         style: TextStyle(
                           fontSize: 11,
                           letterSpacing: 2,

@@ -354,7 +354,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'VERSI 1.0 • © 2026 LAZWAF AL AZHAR',
+                        'VERSI 1.0 • © 2026 Al Azhar peduli',
                         style: TextStyle(
                           fontSize: 11,
                           letterSpacing: 1.5,

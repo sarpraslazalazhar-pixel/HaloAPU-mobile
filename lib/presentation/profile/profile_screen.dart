@@ -24,92 +24,140 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppTheme.lightBg,
-      appBar: AppBar(
-        title: const Text('Profil', style: TextStyle(fontWeight: FontWeight.bold)),
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-        children: [
-          EntranceAnimation(
-            child: _ProfileHeaderCard(
-              profile: profile,
-              onAvatarTap: () => _pickAndUploadAvatar(context, ref),
+      body: CustomScrollView(
+        slivers: [
+          // Gradient SliverAppBar
+          SliverAppBar(
+            expandedHeight: 260,
+            pinned: true,
+            elevation: 0,
+            backgroundColor: AppTheme.brilliantBlue,
+            foregroundColor: Colors.white,
+            flexibleSpace: FlexibleSpaceBar(
+              background: _ProfileHeroHeader(
+                profile: profile,
+                onAvatarTap: () => _pickAndUploadAvatar(
+                  context,
+                  ref,
+                ),
+              ),
+              collapseMode: CollapseMode.pin,
             ),
-          ),
-          const SizedBox(height: 16),
-          EntranceAnimation(
-            delay: const Duration(milliseconds: 120),
-            child: _MenuSection(
-              items: [
-                _MenuItem(
-                  icon: Icons.edit_outlined,
-                  color: AppTheme.oceanWater,
-                  title: 'Edit Profil',
-                  subtitle: 'Ubah nama, email, dan nomor HP',
-                  onTap: () => context.push('/profile/edit'),
-                ),
-                _MenuItem(
-                  icon: Icons.lock_outline_rounded,
-                  color: AppTheme.brilliantBlue,
-                  title: 'Ubah Kata Sandi',
-                  subtitle: 'Ganti kata sandi akun Anda',
-                  onTap: () => context.push('/profile/change-password'),
-                ),
-              ],
+            title: const Text(
+              'Profil',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: Colors.white,
+              ),
             ),
+            centerTitle: false,
           ),
-          const SizedBox(height: 16),
-          const EntranceAnimation(
-            delay: Duration(milliseconds: 240),
-            child: _BiometricSection(),
-          ),
-          const SizedBox(height: 16),
-          EntranceAnimation(
-            delay: const Duration(milliseconds: 320),
-            child: _MenuSection(
-              items: [
-                _MenuItem(
-                  icon: Icons.help_outline_rounded,
-                  color: AppTheme.oceanWater,
-                  title: 'Pusat Bantuan & FAQ',
-                  subtitle: 'Panduan penggunaan dan tanya jawab',
-                  onTap: () => context.push('/help'),
+
+          // Body content
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                // Contact info card
+                EntranceAnimation(
+                  child: _ContactInfoCard(profile: profile),
                 ),
-                _MenuItem(
-                  icon: Icons.support_agent_rounded,
-                  color: const Color(0xFF0284C7),
-                  title: 'Hubungi Admin',
-                  subtitle: 'Kontak WhatsApp, email, dan pesan tiket',
-                  onTap: () => context.push('/contact-admin'),
+                const SizedBox(height: 20),
+
+                // AKUN & KEAMANAN
+                const EntranceAnimation(
+                  delay: Duration(milliseconds: 80),
+                  child: _SectionLabel(label: 'AKUN & KEAMANAN'),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          EntranceAnimation(
-            delay: const Duration(milliseconds: 360),
-            child: _MenuSection(
-              items: [
-                _MenuItem(
-                  icon: Icons.logout_rounded,
-                  color: AppTheme.danger,
-                  title: 'Keluar',
-                  subtitle: 'Akhiri sesi akun Anda',
-                  onTap: () => _confirmLogout(context),
-                  isDanger: true,
+                const SizedBox(height: 8),
+                EntranceAnimation(
+                  delay: const Duration(milliseconds: 120),
+                  child: _MenuSection(
+                    items: [
+                      _MenuItem(
+                        icon: Icons.edit_outlined,
+                        color: AppTheme.oceanWater,
+                        title: 'Edit Profil',
+                        subtitle: 'Ubah nama, email, dan nomor HP',
+                        onTap: () => context.push('/profile/edit'),
+                      ),
+                      _MenuItem(
+                        icon: Icons.lock_outline_rounded,
+                        color: AppTheme.brilliantBlue,
+                        title: 'Ubah Kata Sandi',
+                        subtitle: 'Ganti kata sandi akun Anda',
+                        onTap: () => context.push('/profile/change-password'),
+                      ),
+                    ],
+                  ),
                 ),
-                _MenuItem(
-                  icon: Icons.delete_forever_outlined,
-                  color: AppTheme.danger,
-                  title: 'Hapus Akun',
-                  subtitle: 'Hapus akun dan semua data Anda',
-                  onTap: () => _confirmDeleteAccount(context, ref),
-                  isDanger: true,
+                const SizedBox(height: 8),
+                const EntranceAnimation(
+                  delay: Duration(milliseconds: 200),
+                  child: _BiometricSection(),
                 ),
-              ],
+                const SizedBox(height: 20),
+
+                // BANTUAN & INFORMASI
+                const EntranceAnimation(
+                  delay: Duration(milliseconds: 260),
+                  child: _SectionLabel(label: 'BANTUAN & INFORMASI'),
+                ),
+                const SizedBox(height: 8),
+                EntranceAnimation(
+                  delay: const Duration(milliseconds: 300),
+                  child: _MenuSection(
+                    items: [
+                      _MenuItem(
+                        icon: Icons.help_outline_rounded,
+                        color: AppTheme.oceanWater,
+                        title: 'Pusat Bantuan & FAQ',
+                        subtitle: 'Panduan penggunaan dan tanya jawab',
+                        onTap: () => context.push('/help'),
+                      ),
+                      _MenuItem(
+                        icon: Icons.support_agent_rounded,
+                        color: AppTheme.brilliantBlue,
+                        title: 'Hubungi Admin',
+                        subtitle: 'Kontak WhatsApp, email, dan pesan tiket',
+                        onTap: () => context.push('/contact-admin'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // AKUN (danger zone)
+                const EntranceAnimation(
+                  delay: Duration(milliseconds: 360),
+                  child: _SectionLabel(label: 'ZONA AKUN'),
+                ),
+                const SizedBox(height: 8),
+                EntranceAnimation(
+                  delay: const Duration(milliseconds: 400),
+                  child: _MenuSection(
+                    items: [
+                      _MenuItem(
+                        icon: Icons.logout_rounded,
+                        color: AppTheme.danger,
+                        title: 'Keluar',
+                        subtitle: 'Akhiri sesi akun Anda',
+                        onTap: () => _confirmLogout(context),
+                        isDanger: true,
+                      ),
+                      _MenuItem(
+                        icon: Icons.delete_forever_outlined,
+                        color: AppTheme.danger,
+                        title: 'Hapus Akun',
+                        subtitle: 'Hapus akun dan semua data Anda',
+                        onTap: () => _confirmDeleteAccount(context, ref),
+                        isDanger: true,
+                      ),
+                    ],
+                  ),
+                ),
+              ]),
             ),
           ),
         ],
@@ -225,6 +273,7 @@ class ProfileScreen extends ConsumerWidget {
       }
     }
   }
+
   Future<void> _pickAndUploadAvatar(BuildContext context, WidgetRef ref) async {
     final picker = ImagePicker();
     final source = await showModalBottomSheet<ImageSource>(
@@ -357,38 +406,50 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-class _ProfileHeaderCard extends StatelessWidget {
+// ─── Hero header (gradient background) ───────────────────────────────────────
+
+class _ProfileHeroHeader extends StatelessWidget {
   final UserProfile profile;
   final VoidCallback onAvatarTap;
 
-  const _ProfileHeaderCard({
+  const _ProfileHeroHeader({
     required this.profile,
     required this.onAvatarTap,
   });
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.brilliantBlue.withValues(alpha: 0.25),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
+      decoration: const BoxDecoration(gradient: AppTheme.primaryGradient),
+      padding: const EdgeInsets.fromLTRB(20, 100, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
+          // Avatar with camera badge
           Stack(
+            alignment: Alignment.center,
             children: [
+              // White ring
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+              ),
               AppAvatar(
                 name: profile.name.isNotEmpty ? profile.name : 'Pengguna',
                 imageUrl: profile.avatarUrl,
-                radius: 32,
-                showBorder: true,
+                radius: 40,
+                showBorder: false,
                 onTap: onAvatarTap,
               ),
               Positioned(
@@ -397,64 +458,170 @@ class _ProfileHeaderCard extends StatelessWidget {
                 child: GestureDetector(
                   onTap: onAvatarTap,
                   child: Container(
-                    padding: const EdgeInsets.all(4),
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 4,
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 6,
                         ),
                       ],
                     ),
                     child: const Icon(
                       Icons.camera_alt_rounded,
-                      size: 14,
-                      color: AppTheme.oceanWater,
+                      size: 15,
+                      color: AppTheme.brilliantBlue,
                     ),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 16),
+          const SizedBox(height: 12),
+
+          // Name
+          Text(
+            profile.name,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -0.4,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '@${profile.username}',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Position & division badges
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              if (profile.position.isNotEmpty)
+                _BadgeChip(label: profile.position),
+              if (profile.division.isNotEmpty)
+                _BadgeChip(label: profile.division),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BadgeChip extends StatelessWidget {
+  final String label;
+  const _BadgeChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Contact info card ────────────────────────────────────────────────────────
+
+class _ContactInfoCard extends StatelessWidget {
+  final UserProfile profile;
+  const _ContactInfoCard({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <_InfoRow>[];
+    if (profile.email.isNotEmpty) {
+      rows.add(_InfoRow(
+        icon: Icons.email_outlined,
+        label: 'Email',
+        value: profile.email,
+      ));
+    }
+    if (profile.phone.isNotEmpty) {
+      rows.add(_InfoRow(
+        icon: Icons.phone_outlined,
+        label: 'Telepon',
+        value: profile.phone,
+      ));
+    }
+    if (profile.department.isNotEmpty) {
+      rows.add(_InfoRow(
+        icon: Icons.corporate_fare_rounded,
+        label: 'Departemen',
+        value: profile.department,
+      ));
+    }
+
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0)
+              Divider(height: 1, indent: 52, endIndent: 16, color: Colors.grey.shade100),
+            rows[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _InfoRow({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: AppTheme.slateGrey),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  profile.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.3,
-                  ),
+                  label,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 1),
                 Text(
-                  '@${profile.username}',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 12.5,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  profile.position,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${profile.division} - ${profile.department}',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 12,
-                  ),
+                  value,
+                  style: const TextStyle(fontSize: 14, color: Colors.black87),
                 ),
               ],
             ),
@@ -464,6 +631,31 @@ class _ProfileHeaderCard extends StatelessWidget {
     );
   }
 }
+
+// ─── Section label ────────────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: AppTheme.slateGrey,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Biometric section ────────────────────────────────────────────────────────
 
 class _BiometricSection extends StatefulWidget {
   const _BiometricSection();
@@ -601,7 +793,7 @@ class _BiometricSectionState extends State<_BiometricSection> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -644,6 +836,8 @@ class _BiometricSectionState extends State<_BiometricSection> {
   }
 }
 
+// ─── Menu section & item ──────────────────────────────────────────────────────
+
 class _MenuSection extends StatelessWidget {
   final List<_MenuItem> items;
 
@@ -654,7 +848,7 @@ class _MenuSection extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
@@ -695,7 +889,7 @@ class _MenuItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
