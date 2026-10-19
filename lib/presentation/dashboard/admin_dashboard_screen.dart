@@ -480,9 +480,9 @@ class _AdminHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Halo, ${displayName.split(' ').first}',
+                  'Assalamu\'alaikum, ${displayName.split(' ').first}',
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: 19,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF00768C),
                     letterSpacing: -0.5,

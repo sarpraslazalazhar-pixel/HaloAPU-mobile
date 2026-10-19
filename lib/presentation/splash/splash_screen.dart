@@ -33,25 +33,25 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   void initState() {
     super.initState();
 
-    // 1. Controller durasi ~1800ms untuk pengalaman cepat & responsif
+    // 1. Controller durasi ~2600ms (2.6 detik) sesuai preferensi animasi 2-3 detik
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
+      duration: const Duration(milliseconds: 2600),
     );
 
     // 2. Staggered Animations:
-    // Phase 1: Logo Scale & Fade (0.0 -> 0.55)
+    // Phase 1: Logo Scale & Fade (0.0 -> 0.45)
     _logoScaleAnimation = Tween<double>(begin: 0.4, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 0.55, curve: Curves.easeOutBack),
+        curve: const Interval(0.0, 0.45, curve: Curves.easeOutBack),
       ),
     );
 
     _logoFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 0.4, curve: Curves.easeIn),
+        curve: const Interval(0.0, 0.35, curve: Curves.easeIn),
       ),
     );
 
@@ -63,14 +63,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       ),
     );
 
-    // Phase 2: Title "HALO APU" Slide & Fade (0.35 -> 0.75)
+    // Phase 2: Title "HALO APU" Slide & Fade (0.35 -> 0.70)
     _textSlideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.5),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.35, 0.75, curve: Curves.easeOutCubic),
+        curve: const Interval(0.35, 0.70, curve: Curves.easeOutCubic),
       ),
     );
 
@@ -81,11 +81,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       ),
     );
 
-    // Phase 3: Tagline Fade (0.55 -> 1.0)
+    // Phase 3: Tagline Fade (0.55 -> 0.90)
     _taglineFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.55, 1.0, curve: Curves.easeIn),
+        curve: const Interval(0.55, 0.90, curve: Curves.easeIn),
       ),
     );
 
@@ -93,8 +93,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     _startParallelInit();
     _controller.forward();
 
-    // Safety fallback: pastikan berpindah maksimal dalam 2.5 detik apa pun yang terjadi
-    _safetyTimer = Timer(const Duration(milliseconds: 2500), () {
+    // Safety fallback: pastikan berpindah maksimal dalam 3.2 detik apa pun yang terjadi
+    _safetyTimer = Timer(const Duration(milliseconds: 3200), () {
       if (mounted && !_isNavigated) {
         _isNavigated = true;
         _isInitCompleted = true;
