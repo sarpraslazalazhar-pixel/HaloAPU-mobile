@@ -388,39 +388,37 @@ class _AdminTicketDetailScreenState
     Color color,
   ) {
     final isSelected = _ticket.status == status;
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          Navigator.of(sheetContext).pop(); // close bottom sheet first
-          _showStatusConfirmDialog(status, label, color);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? color.withValues(alpha: 0.12)
-                : AppTheme.lightBg,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected ? color : Colors.transparent,
-              width: 1.5,
-            ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        Navigator.of(sheetContext).pop(); // close bottom sheet first
+        _showStatusConfirmDialog(status, label, color);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? color.withValues(alpha: 0.12)
+              : AppTheme.lightBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? color : Colors.transparent,
+            width: 1.5,
           ),
-          child: Column(
-            children: [
-              Icon(icon, color: isSelected ? color : Colors.grey.shade500, size: 22),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                  color: isSelected ? color : Colors.grey.shade600,
-                ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: isSelected ? color : Colors.grey.shade500, size: 22),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                color: isSelected ? color : Colors.grey.shade600,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -437,7 +435,7 @@ class _AdminTicketDetailScreenState
       barrierDismissible: false,
       builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (context, setStateDialog) {
+          builder: (_, setStateDialog) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: Text('Ubah Status ke "$label"'),
@@ -512,7 +510,7 @@ class _AdminTicketDetailScreenState
                           if (image != null) {
                             final fileSize = await image.length();
                             if (fileSize > 3 * 1024 * 1024) {
-                              if (!context.mounted) return;
+                              if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Ukuran file melebihi 3MB')),
                               );
@@ -544,29 +542,43 @@ class _AdminTicketDetailScreenState
                       ? null
                       : () async {
                           setStateDialog(() => isSubmitting = true);
-                          final result = await _ticketService.changeStatus(
-                            _ticket.id, 
-                            _statusToString(status),
-                            catatan: noteController.text.trim(),
-                            attachments: attachments,
-                          );
-                          
-                          if (!dialogContext.mounted) return;
-                          Navigator.pop(dialogContext); // close dialog
+                          try {
+                            final result = await _ticketService.changeStatus(
+                              _ticket.id, 
+                              _statusToString(status),
+                              catatan: noteController.text.trim(),
+                              attachments: attachments,
+                            );
+                            
+                            if (!dialogContext.mounted) return;
+                            Navigator.pop(dialogContext); // close dialog
 
-                          if (result['success']) {
-                            _loadTicketDetail(); // reload to get new logs & detail
-                            if (mounted) {
+                            if (result['success']) {
+                              await CacheService.remove(CacheService.ticketDetailKey(_ticket.id));
+                              await CacheService.removeByPrefix('ticket_list_');
+                              ref.read(adminTicketProvider.notifier).refresh();
+                              await _loadTicketDetail(); // reload to get new logs & detail
+                              if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(behavior: SnackBarBehavior.floating, content: Text('Status berhasil diubah menjadi "$label"')),
                               );
-                            }
-                          } else {
-                            if (mounted) {
+                            } else {
+                              if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text(result['message'])),
                               );
                             }
+                          } catch (e) {
+                            if (!dialogContext.mounted) return;
+                            Navigator.pop(dialogContext);
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                behavior: SnackBarBehavior.floating,
+                                backgroundColor: Colors.red.shade600,
+                                content: Text('Gagal mengubah status: $e'),
+                              ),
+                            );
                           }
                         },
                   style: ElevatedButton.styleFrom(

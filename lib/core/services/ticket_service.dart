@@ -191,15 +191,20 @@ class TicketService {
     List<XFile>? attachments,
   }) async {
     try {
+      final cleanId = id.replaceAll('-', '');
       if (attachments == null || attachments.isEmpty) {
         final response = await _dio.post(
-          '/tickets/$id/status',
+          '/tickets/$cleanId/status',
           data: {
             'status': newStatus,
             if (catatan != null && catatan.isNotEmpty) 'catatan': catatan,
           },
         );
-        return {'success': true, 'message': response.data['message']};
+        final data = response.data;
+        final message = (data is Map && data['message'] != null)
+            ? data['message'].toString()
+            : 'Status berhasil diperbarui';
+        return {'success': true, 'message': message};
       } else {
         final formData = FormData.fromMap({
           'status': newStatus,
@@ -211,13 +216,31 @@ class TicketService {
           formData.files.add(MapEntry('general_attachments[]', multipartFile));
         }
 
-        final response = await _dio.post('/tickets/$id/status', data: formData);
-        return {'success': true, 'message': response.data['message']};
+        final response = await _dio.post('/tickets/$cleanId/status', data: formData);
+        final data = response.data;
+        final message = (data is Map && data['message'] != null)
+            ? data['message'].toString()
+            : 'Status berhasil diperbarui';
+        return {'success': true, 'message': message};
       }
     } on DioException catch (e) {
+      String message = 'Gagal mengubah status';
+      final data = e.response?.data;
+      if (data is Map && data['message'] != null) {
+        message = data['message'].toString();
+      } else if (data is String && data.isNotEmpty) {
+        message = data.length > 100
+            ? 'Terjadi kesalahan pada server (${e.response?.statusCode ?? 500})'
+            : data;
+      }
       return {
         'success': false,
-        'message': e.response?.data['message'] ?? 'Gagal mengubah status'
+        'message': message,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal mengubah status: $e',
       };
     }
   }

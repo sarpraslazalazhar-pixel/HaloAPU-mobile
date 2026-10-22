@@ -23,7 +23,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final AuthService _authService = AuthService();
   final BiometricService _biometricService = BiometricService();
   bool _obscurePassword = true;
-  bool _isLoading = false;
+  bool _isLoadingUser = false;
+  bool _isLoadingAdmin = false;
+  bool _isLoadingBiometric = false;
+
+  bool get _isLoading => _isLoadingUser || _isLoadingAdmin || _isLoadingBiometric;
   bool _biometricVisible = false;
   Map<String, String>? _savedBiometricUser;
   int _biometricFailures = 0;
@@ -67,14 +71,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() => _isLoadingBiometric = true);
 
     final creds = await _biometricService.getBiometricCredentials();
     if (!mounted) return;
 
     if (creds == null) {
       setState(() {
-        _isLoading = false;
+        _isLoadingBiometric = false;
         _biometricVisible = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -87,7 +91,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final result = await _authService.login(creds['email']!, creds['password']!, isAdmin);
 
     if (!mounted) return;
-    setState(() => _isLoading = false);
+    setState(() => _isLoadingBiometric = false);
 
     if (result['success'] == true) {
       ref.invalidate(userProfileProvider);
@@ -133,14 +137,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     setState(() {
-      _isLoading = true;
+      if (isAdmin) {
+        _isLoadingAdmin = true;
+      } else {
+        _isLoadingUser = true;
+      }
     });
 
     final result = await _authService.login(email, password, isAdmin);
 
     if (mounted) {
       setState(() {
-        _isLoading = false;
+        _isLoadingUser = false;
+        _isLoadingAdmin = false;
       });
 
       if (result['success']) {
@@ -322,7 +331,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                                 icon: const Icon(Icons.touch_app, size: 20),
                                 label: Text(
-                                  _isLoading ? 'Memverifikasi...' : 'Masuk dengan Sidik Jari',
+                                  _isLoadingBiometric ? 'Memverifikasi...' : 'Masuk dengan Sidik Jari',
                                   style: const TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,
@@ -470,7 +479,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     elevation: 8,
                                     shadowColor: AppTheme.oceanWater.withValues(alpha: 0.5),
                                   ),
-                                  child: _isLoading && !_emailController.text.contains("admin") 
+                                  child: _isLoadingUser
                                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                                       : const Row(
                                           mainAxisAlignment: MainAxisAlignment.center,
@@ -505,7 +514,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
-                                  child: _isLoading && _emailController.text.contains("admin") 
+                                  child: _isLoadingAdmin
                                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: AppTheme.oceanWater, strokeWidth: 2))
                                       : const Row(
                                           mainAxisAlignment: MainAxisAlignment.center,
