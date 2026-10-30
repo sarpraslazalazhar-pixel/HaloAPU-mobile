@@ -82,6 +82,100 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
       ),
       body: Column(
         children: [
+          // Tab Switcher: Antrean Unit vs Tiket Saya
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(25),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        ref.read(adminTicketProvider.notifier).setTab('masuk');
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: ref.watch(adminTicketProvider.notifier).currentTab == 'masuk'
+                              ? const Color(0xFF00768C)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        alignment: Alignment.center,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.inbox_rounded,
+                              size: 16,
+                              color: ref.watch(adminTicketProvider.notifier).currentTab == 'masuk'
+                                  ? Colors.white
+                                  : Colors.grey.shade700,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Antrean Unit',
+                              style: TextStyle(
+                                color: ref.watch(adminTicketProvider.notifier).currentTab == 'masuk'
+                                    ? Colors.white
+                                    : Colors.grey.shade700,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        ref.read(adminTicketProvider.notifier).setTab('saya_ajukan');
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: ref.watch(adminTicketProvider.notifier).currentTab == 'saya_ajukan'
+                              ? const Color(0xFF00768C)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        alignment: Alignment.center,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.send_rounded,
+                              size: 16,
+                              color: ref.watch(adminTicketProvider.notifier).currentTab == 'saya_ajukan'
+                                  ? Colors.white
+                                  : Colors.grey.shade700,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Tiket Saya',
+                              style: TextStyle(
+                                color: ref.watch(adminTicketProvider.notifier).currentTab == 'saya_ajukan'
+                                    ? Colors.white
+                                    : Colors.grey.shade700,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           // Search Bar
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),

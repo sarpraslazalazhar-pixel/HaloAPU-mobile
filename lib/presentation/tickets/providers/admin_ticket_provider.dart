@@ -11,14 +11,20 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
   List<TicketModel> _allTickets = [];
   List<String>? _currentStatuses;
   String? _searchQuery;
-
+  String _currentTab = 'masuk'; // 'masuk' (Antrean Unit) or 'saya_ajukan' (Tiket Saya)
   AdminTicketNotifier() : super(const AsyncValue.loading()) {
     _loadInitial();
   }
 
   bool get hasMore => _hasMore;
   bool get isLoadingMore => _isLoadingMore;
+  String get currentTab => _currentTab;
 
+  void setTab(String tab) {
+    if (_currentTab == tab) return;
+    _currentTab = tab;
+    _loadInitial();
+  }
   void setFilter(String filter) {
     switch (filter) {
       case 'Semua':
@@ -60,11 +66,11 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     _allTickets.clear();
 
     // Stale-while-revalidate: tampilkan cache dulu jika tersedia
-    final cacheKey = CacheService.ticketListKey(
+    final cacheKey = '${_currentTab}_${CacheService.ticketListKey(
       status: _currentStatuses?.join(','),
       search: _searchQuery,
       page: _currentPage,
-    );
+    )}';
     final cached = CacheService.get(cacheKey);
     if (cached != null && cached is List) {
       _allTickets = cached.map((json) => TicketModel.safeFromJson(json)).toList();
@@ -78,6 +84,7 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
       page: _currentPage, 
       statuses: _currentStatuses,
       search: _searchQuery,
+      tab: _currentTab,
     );
     if (result['success']) {
       final List<dynamic> data = result['data'];
@@ -113,6 +120,7 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
       page: _currentPage, 
       statuses: _currentStatuses,
       search: _searchQuery,
+      tab: _currentTab,
     );
     if (result['success']) {
       final List<dynamic> data = result['data'];
@@ -126,11 +134,11 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
 
       // Simpan ke cache (TTL 5 menit)
       await CacheService.put(
-        CacheService.ticketListKey(
+        '${_currentTab}_${CacheService.ticketListKey(
           status: _currentStatuses?.join(','),
           search: _searchQuery,
           page: _currentPage,
-        ),
+        )}',
         data,
         ttlSeconds: 300,
       );

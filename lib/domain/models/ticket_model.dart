@@ -114,6 +114,21 @@ sealed class TicketModel with _$TicketModel {
           .whereType<Map<String, dynamic>>()
           .toList();
     }
+    if (map['logs'] is List) {
+      map['logs'] = (map['logs'] as List)
+          .map((e) => e is Map ? Map<String, dynamic>.from(e) : null)
+          .whereType<Map<String, dynamic>>()
+          .map((e) {
+            if (e['attachments'] is List) {
+              e['attachments'] = (e['attachments'] as List)
+                  .map((a) => a is Map ? Map<String, dynamic>.from(a) : null)
+                  .whereType<Map<String, dynamic>>()
+                  .toList();
+            }
+            return e;
+          })
+          .toList();
+    }
     return TicketModel.fromJson(map);
   }
 }
@@ -132,8 +147,18 @@ sealed class TicketReply with _$TicketReply {
 
   factory TicketReply.fromJson(Map<String, dynamic> json) {
     final map = Map<String, dynamic>.from(json);
+    map['id'] = map['id'] is int ? map['id'] : (int.tryParse(map['id']?.toString() ?? '0') ?? 0);
+    map['action'] = (map['action'] ?? map['aksi'] ?? '').toString();
+    map['note'] = (map['note'] ?? map['catatan'] ?? '').toString();
     final rawCreatedAt = map['createdAt'] ?? map['created_at'];
     map['createdAt'] = parseToLocal(rawCreatedAt).toIso8601String();
+    map['isFromAdmin'] = map['isFromAdmin'] == true || map['is_from_admin'] == true;
+    if (map['attachments'] is List) {
+      map['attachments'] = (map['attachments'] as List)
+          .map((a) => a is Map ? Map<String, dynamic>.from(a) : null)
+          .whereType<Map<String, dynamic>>()
+          .toList();
+    }
     return _$TicketReplyFromJson(map);
   }
 }

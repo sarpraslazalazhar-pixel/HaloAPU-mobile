@@ -93,6 +93,7 @@ class TicketService {
     String? dateFrom,
     String? dateTo,
     String? search,
+    String? tab,
     int page = 1,
   }) async {
     try {
@@ -101,8 +102,8 @@ class TicketService {
         if (dateFrom != null) 'date_from': dateFrom,
         if (dateTo != null) 'date_to': dateTo,
         if (search != null && search.isNotEmpty) 'search': search,
+        if (tab != null && tab.isNotEmpty) 'tab': tab,
       };
-
       if (statuses != null && statuses.isNotEmpty) {
         queryParameters['status'] = statuses.join(',');
       }

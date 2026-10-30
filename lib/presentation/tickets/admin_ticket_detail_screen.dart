@@ -128,10 +128,16 @@ class _AdminTicketDetailScreenState
 
   void _applyDetailData(Map<String, dynamic> data) {
     void apply() {
-      _ticket = TicketModel.safeFromJson(data);
+      try {
+        _ticket = TicketModel.safeFromJson(data);
+      } catch (e) {
+        debugPrint('Error safeFromJson in AdminTicketDetailScreen: $e');
+      }
       if (data['attachments'] is List) {
         _attachments = List<Map<String, dynamic>>.from(
-          (data['attachments'] as List).map((a) => Map<String, dynamic>.from(a as Map)),
+          (data['attachments'] as List)
+              .map((a) => a is Map ? Map<String, dynamic>.from(a) : null)
+              .whereType<Map<String, dynamic>>(),
         );
       }
       if (data['formData'] is Map) {
@@ -139,7 +145,9 @@ class _AdminTicketDetailScreenState
       }
       if (data['formFields'] is List) {
         _formFields = List<Map<String, dynamic>>.from(
-          (data['formFields'] as List).map((f) => Map<String, dynamic>.from(f as Map)),
+          (data['formFields'] as List)
+              .map((f) => f is Map ? Map<String, dynamic>.from(f) : null)
+              .whereType<Map<String, dynamic>>(),
         );
       }
       if (data['csat'] is Map) {
