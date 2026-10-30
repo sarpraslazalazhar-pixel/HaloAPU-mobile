@@ -334,25 +334,31 @@ class TicketCard extends StatelessWidget {
                       ],
                     ),
                     if (ticket.requesterName.isNotEmpty)
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.person_outline_rounded,
-                            size: 14,
-                            color: Color(0xFF64748B),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            ticket.requesterName,
-                            style: const TextStyle(
+                      Flexible(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            const Icon(
+                              Icons.person_outline_rounded,
+                              size: 14,
                               color: Color(0xFF64748B),
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                ticket.requesterName,
+                                style: const TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       )
                     else
                       const Row(

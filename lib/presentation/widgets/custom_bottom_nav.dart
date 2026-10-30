@@ -77,7 +77,7 @@ class UserBottomNav extends StatelessWidget {
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
               color: isActive ? const Color(0xFFD6F3F9) : Colors.transparent, // Very light cyan
               borderRadius: BorderRadius.circular(14),
@@ -200,7 +200,7 @@ class AdminBottomNav extends StatelessWidget {
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
               color: isActive ? const Color(0xFFD6F3F9) : Colors.transparent,
               borderRadius: BorderRadius.circular(14),
