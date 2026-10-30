@@ -23,6 +23,7 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
   void setTab(String tab) {
     if (_currentTab == tab) return;
     _currentTab = tab;
+    _currentStatuses = null;
     _loadInitial();
   }
   void setFilter(String filter) {
@@ -66,11 +67,12 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     _allTickets.clear();
 
     // Stale-while-revalidate: tampilkan cache dulu jika tersedia
-    final cacheKey = '${_currentTab}_${CacheService.ticketListKey(
+    final cacheKey = CacheService.ticketListKey(
+      tab: _currentTab,
       status: _currentStatuses?.join(','),
       search: _searchQuery,
       page: _currentPage,
-    )}';
+    );
     final cached = CacheService.get(cacheKey);
     if (cached != null && cached is List) {
       _allTickets = cached.map((json) => TicketModel.safeFromJson(json)).toList();
@@ -134,11 +136,12 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
 
       // Simpan ke cache (TTL 5 menit)
       await CacheService.put(
-        '${_currentTab}_${CacheService.ticketListKey(
+        CacheService.ticketListKey(
+          tab: _currentTab,
           status: _currentStatuses?.join(','),
           search: _searchQuery,
           page: _currentPage,
-        )}',
+        ),
         data,
         ttlSeconds: 300,
       );

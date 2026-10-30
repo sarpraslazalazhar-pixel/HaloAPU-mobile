@@ -11,8 +11,9 @@ import 'dart:async';
 
 class AdminTicketListScreen extends ConsumerStatefulWidget {
   final String? initialFilter;
+  final String? initialTab;
 
-  const AdminTicketListScreen({super.key, this.initialFilter});
+  const AdminTicketListScreen({super.key, this.initialFilter, this.initialTab});
 
   @override
   ConsumerState<AdminTicketListScreen> createState() => _AdminTicketListScreenState();
@@ -20,6 +21,7 @@ class AdminTicketListScreen extends ConsumerStatefulWidget {
 
 class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
   final ScrollController _scrollController = ScrollController();
+  String _activeTab = 'masuk';
   String _selectedFilter = 'Semua';
   final List<String> _filters = ['Semua', 'Aktif', 'Terbuka', 'Diproses', 'Tertunda', 'Selesai', 'Ditolak'];
   bool _isLoadingMore = false;
@@ -30,15 +32,23 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    if (widget.initialTab != null && (widget.initialTab == 'masuk' || widget.initialTab == 'saya_ajukan')) {
+      _activeTab = widget.initialTab!;
+    }
     final filter = widget.initialFilter == 'Menunggu' ? 'Terbuka' : widget.initialFilter;
     if (filter != null && _filters.contains(filter)) {
       _selectedFilter = filter;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        if (widget.initialTab != null) {
+          ref.read(adminTicketProvider.notifier).setTab(_activeTab);
+        }
+        if (filter != null) {
           ref.read(adminTicketProvider.notifier).setFilter(filter);
         }
-      });
-    }
+      }
+    });
   }
 
   @override
@@ -95,12 +105,17 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
+                        if (_activeTab == 'masuk') return;
+                        setState(() {
+                          _activeTab = 'masuk';
+                          _selectedFilter = 'Semua';
+                        });
                         ref.read(adminTicketProvider.notifier).setTab('masuk');
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(
-                          color: ref.watch(adminTicketProvider.notifier).currentTab == 'masuk'
+                          color: _activeTab == 'masuk'
                               ? const Color(0xFF00768C)
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(25),
@@ -112,7 +127,7 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
                             Icon(
                               Icons.inbox_rounded,
                               size: 16,
-                              color: ref.watch(adminTicketProvider.notifier).currentTab == 'masuk'
+                              color: _activeTab == 'masuk'
                                   ? Colors.white
                                   : Colors.grey.shade700,
                             ),
@@ -120,7 +135,7 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
                             Text(
                               'Antrean Unit',
                               style: TextStyle(
-                                color: ref.watch(adminTicketProvider.notifier).currentTab == 'masuk'
+                                color: _activeTab == 'masuk'
                                     ? Colors.white
                                     : Colors.grey.shade700,
                                 fontWeight: FontWeight.bold,
@@ -135,12 +150,17 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
+                        if (_activeTab == 'saya_ajukan') return;
+                        setState(() {
+                          _activeTab = 'saya_ajukan';
+                          _selectedFilter = 'Semua';
+                        });
                         ref.read(adminTicketProvider.notifier).setTab('saya_ajukan');
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(
-                          color: ref.watch(adminTicketProvider.notifier).currentTab == 'saya_ajukan'
+                          color: _activeTab == 'saya_ajukan'
                               ? const Color(0xFF00768C)
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(25),
@@ -152,7 +172,7 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
                             Icon(
                               Icons.send_rounded,
                               size: 16,
-                              color: ref.watch(adminTicketProvider.notifier).currentTab == 'saya_ajukan'
+                              color: _activeTab == 'saya_ajukan'
                                   ? Colors.white
                                   : Colors.grey.shade700,
                             ),
@@ -160,7 +180,7 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
                             Text(
                               'Tiket Saya',
                               style: TextStyle(
-                                color: ref.watch(adminTicketProvider.notifier).currentTab == 'saya_ajukan'
+                                color: _activeTab == 'saya_ajukan'
                                     ? Colors.white
                                     : Colors.grey.shade700,
                                 fontWeight: FontWeight.bold,
@@ -273,7 +293,7 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
                                 Icon(Icons.inbox_outlined, size: 64, color: Colors.grey.shade400),
                                 const SizedBox(height: 16),
                                 Text(
-                                  'Belum ada tiket',
+                                  _activeTab == 'saya_ajukan' ? 'Belum ada tiket yang Anda ajukan' : 'Belum ada tiket di unit ini',
                                   style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
                                 ),
                               ],

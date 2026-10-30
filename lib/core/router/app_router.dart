@@ -129,7 +129,8 @@ final appRouter = GoRouter(
       path: '/tickets/admin',
       pageBuilder: (context, state) {
         final filter = state.extra as String? ?? state.uri.queryParameters['filter'];
-        return _fadeSlidePage(state, AdminTicketListScreen(initialFilter: filter));
+        final tab = state.uri.queryParameters['tab'];
+        return _fadeSlidePage(state, AdminTicketListScreen(initialFilter: filter, initialTab: tab));
       },
     ),
     GoRoute(
