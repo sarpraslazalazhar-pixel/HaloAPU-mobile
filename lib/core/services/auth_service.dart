@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:halo_apu_mobile/core/config/api_config.dart';
 import 'package:halo_apu_mobile/core/services/device_service.dart';
 import 'package:halo_apu_mobile/core/services/biometric_service.dart';
+import 'package:halo_apu_mobile/core/services/cache_service.dart';
 
 class AuthService {
   Dio get _dio => Dio(BaseOptions(
@@ -115,6 +116,7 @@ class AuthService {
       await _storage.delete(key: 'auth_token');
       await _storage.delete(key: 'user_data');
       await _storage.delete(key: 'user_role');
+      await CacheService.clear();
     }
   }
 

@@ -9,6 +9,10 @@ import 'package:halo_apu_mobile/core/services/push_notification_service.dart';
 import 'package:halo_apu_mobile/presentation/profile/providers/user_profile_provider.dart';
 import 'package:halo_apu_mobile/presentation/notifications/providers/notification_provider.dart';
 import 'package:halo_apu_mobile/data/repositories/dashboard_repository.dart';
+import 'package:halo_apu_mobile/presentation/tickets/providers/admin_ticket_provider.dart';
+import 'package:halo_apu_mobile/presentation/tickets/providers/user_ticket_provider.dart';
+import 'package:halo_apu_mobile/presentation/dashboard/providers/monitor_provider.dart';
+import 'package:halo_apu_mobile/core/services/cache_service.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -94,13 +98,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _isLoadingBiometric = false);
 
     if (result['success'] == true) {
+      await CacheService.clear();
+      ref.invalidate(adminTicketProvider);
+      ref.invalidate(userTicketProvider);
       ref.invalidate(userProfileProvider);
       ref.invalidate(adminProfileProvider);
       ref.invalidate(notificationProvider);
       ref.invalidate(dashboardRepositoryProvider);
+      ref.invalidate(monitorProvider);
 
       // Sync FCM token
       PushNotificationService.syncFcmTokenWithBackend();
+      if (!mounted) return;
 
       if (isAdmin) {
         context.go('/dashboard/admin');
@@ -153,13 +162,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       });
 
       if (result['success']) {
+        await CacheService.clear();
+        ref.invalidate(adminTicketProvider);
+        ref.invalidate(userTicketProvider);
         ref.invalidate(userProfileProvider);
         ref.invalidate(adminProfileProvider);
         ref.invalidate(notificationProvider);
         ref.invalidate(dashboardRepositoryProvider);
+        ref.invalidate(monitorProvider);
 
         // Sync FCM Token with backend
         PushNotificationService.syncFcmTokenWithBackend();
+        if (!mounted) return;
 
         if (isAdmin) {
           context.go('/dashboard/admin');
