@@ -20,6 +20,7 @@ import 'widgets/ticket_status_timeline.dart';
 import 'widgets/chat_bubble.dart';
 import 'widgets/ticket_sla_card.dart';
 import 'widgets/return_asset_sheet.dart';
+import 'package:halo_apu_mobile/presentation/dashboard/providers/monitor_provider.dart';
 
 class AdminTicketDetailScreen extends ConsumerStatefulWidget {
   final TicketModel ticket;
@@ -557,6 +558,7 @@ class _AdminTicketDetailScreenState
                               await CacheService.remove(CacheService.ticketDetailKey(_ticket.id));
                               await CacheService.removeByPrefix('ticket_list_');
                               ref.read(adminTicketProvider.notifier).refresh();
+                              ref.read(monitorProvider.notifier).refresh();
                               await _loadTicketDetail(); // reload to get new logs & detail
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -2377,6 +2379,7 @@ class _AdminTicketDetailScreenState
             ),
           );
           ref.read(adminTicketProvider.notifier).refresh();
+          ref.read(monitorProvider.notifier).refresh();
           await _loadTicketDetail();
           return true;
         } else {
@@ -2624,6 +2627,7 @@ class _AdminTicketDetailScreenState
           ),
         );
         ref.read(adminTicketProvider.notifier).refresh();
+        ref.read(monitorProvider.notifier).refresh();
         await _loadTicketDetail();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

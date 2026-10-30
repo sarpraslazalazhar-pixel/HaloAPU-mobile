@@ -15,6 +15,12 @@ class MonitorScreen extends ConsumerStatefulWidget {
 
 class _MonitorScreenState extends ConsumerState<MonitorScreen> {
   int _selectedIndex = 0; // 0 for Aset, 1 for Kalender
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(monitorProvider.notifier).refresh());
+  }
+
 
   @override
   Widget build(BuildContext context) {
