@@ -30,7 +30,7 @@ class AdminSettingsScreen extends ConsumerWidget {
         foregroundColor: Colors.black,
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 130),
         children: [
           EntranceAnimation(
             child: Container(
@@ -148,6 +148,14 @@ class AdminSettingsScreen extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.danger.withValues(alpha: 0.15)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: _SettingsTile(
                 icon: Icons.logout_rounded,
