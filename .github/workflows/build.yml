@@ -81,7 +81,7 @@ jobs:
           path: build/app/outputs/bundle/productionRelease/*.aab
   build-ios:
     runs-on: macos-15
-    if: github.event_name != 'workflow_dispatch' || inputs.build_target == 'all' || inputs.build_target == 'ios'
+    if: github.event_name == 'workflow_dispatch' && (inputs.build_target == 'all' || inputs.build_target == 'ios')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
