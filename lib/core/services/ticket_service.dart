@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../storage/secure_storage_helper.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import '../config/api_config.dart';
@@ -16,12 +16,11 @@ class TicketService {
     },
   ));
 
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   TicketService() {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final token = await _storage.read(key: 'auth_token');
+        final token = await SafeSecureStorage.read('auth_token');
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
@@ -177,9 +176,30 @@ class TicketService {
         };
       }
     } on DioException catch (e) {
+      String message = 'Gagal membuat tiket';
+      final data = e.response?.data;
+      if (data is Map) {
+        if (data['message'] != null) {
+          message = data['message'].toString();
+        } else if (data['errors'] is Map) {
+          final firstError = (data['errors'] as Map).values.first;
+          if (firstError is List && firstError.isNotEmpty) {
+            message = firstError.first.toString();
+          }
+        }
+      } else if (data is String && data.isNotEmpty) {
+        message = data.length > 100
+            ? 'Terjadi kesalahan pada server (${e.response?.statusCode ?? 500})'
+            : data;
+      }
       return {
         'success': false,
-        'message': e.response?.data['message'] ?? 'Gagal membuat tiket'
+        'message': message,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal membuat tiket: $e',
       };
     }
   }

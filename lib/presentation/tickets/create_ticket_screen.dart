@@ -15,6 +15,9 @@ import 'package:halo_apu_mobile/presentation/widgets/shimmer.dart';
 import 'package:halo_apu_mobile/presentation/widgets/offline_banner.dart';
 import 'package:halo_apu_mobile/presentation/widgets/image_doodle_screen.dart';
 import 'providers/user_ticket_provider.dart';
+import 'providers/admin_ticket_provider.dart';
+import 'package:halo_apu_mobile/core/services/cache_service.dart';
+import 'package:halo_apu_mobile/data/repositories/dashboard_repository.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
 import 'widgets/asset_booking_schedule_widget.dart';
 
@@ -304,18 +307,22 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
       setState(() => _isSubmitting = false);
 
       if (result['success']) {
-        // Add the new ticket to the provider
+        // Invalidate ticket list cache so new ticket appears immediately
+        CacheService.removeByPrefix('ticket_list_');
+
+        // Add the new ticket to provider and refresh admin & dashboard
         if (result['data'] != null) {
           try {
             final newTicket = TicketModel.safeFromJson(result['data']);
             ref.read(userTicketProvider.notifier).addTicket(newTicket);
           } catch (_) {
-            // If parsing fails, just refresh the list
             ref.read(userTicketProvider.notifier).refresh();
           }
         } else {
           ref.read(userTicketProvider.notifier).refresh();
         }
+        ref.read(adminTicketProvider.notifier).refresh();
+        ref.invalidate(dashboardRepositoryProvider);
 
         if (mounted) {
           Hive.box('ticket_drafts').clear();
