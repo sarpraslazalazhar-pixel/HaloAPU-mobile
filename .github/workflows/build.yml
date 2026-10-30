@@ -7,6 +7,16 @@ name: Build Flutter Apps (Android & iOS)
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
+    inputs:
+      build_target:
+        description: 'Target build (android / ios / all)'
+        required: true
+        default: 'android'
+        type: choice
+        options:
+          - android
+          - ios
+          - all
 
 jobs:
   build-android:
@@ -25,8 +35,10 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.47.7'
           channel: 'stable'
           cache: true
+          pub-cache: true
 
       - name: Check Flutter version
         run: flutter --version
@@ -78,8 +90,10 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.47.7'
           channel: 'stable'
           cache: true
+          pub-cache: true
 
       - name: Prepare build directories and configure Flutter
         run: |
