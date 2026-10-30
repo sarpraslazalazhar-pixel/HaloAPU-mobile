@@ -20,7 +20,8 @@ name: Build Flutter Apps (Android & iOS)
 
 jobs:
   build-android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'workflow_dispatch' || inputs.build_target == 'all' || inputs.build_target == 'android'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -80,6 +81,7 @@ jobs:
           path: build/app/outputs/bundle/productionRelease/*.aab
   build-ios:
     runs-on: macos-15
+    if: github.event_name != 'workflow_dispatch' || inputs.build_target == 'all' || inputs.build_target == 'ios'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
