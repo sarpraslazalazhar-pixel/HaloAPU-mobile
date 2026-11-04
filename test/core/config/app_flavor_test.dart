@@ -12,8 +12,8 @@ void main() {
         expect(FlavorConfig.appTitle, 'Halo APU Staging');
       } else {
         expect(FlavorConfig.current, AppFlavor.production);
-        expect(FlavorConfig.baseUrl, 'https://haloapu.id/api');
-        expect(FlavorConfig.webUrl, 'https://haloapu.id');
+        expect(FlavorConfig.baseUrl, 'https://haloapu.apudev.id/api');
+        expect(FlavorConfig.webUrl, 'https://haloapu.apudev.id');
         expect(FlavorConfig.appTitle, 'Halo APU');
       }
     });
