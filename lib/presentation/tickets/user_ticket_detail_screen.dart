@@ -33,6 +33,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
   final FocusNode _chatFocusNode = FocusNode();
   final TextEditingController _messageController = TextEditingController();
   Timer? _pollingTimer;
+  bool _isSilentRefreshing = false;
   bool _isSending = false;
   bool _isLoadingDetail = true;
   bool _isActionLoading = false;
@@ -68,20 +69,26 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
 
   void _startPolling() {
     _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (mounted && _tabController.index == 0 && !_isLoadingDetail && !_isSending) {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted && _tabController.index == 0 && !_isLoadingDetail && !_isSending && !_isSilentRefreshing) {
         _silentRefreshTicketDetail();
       }
     });
   }
 
   Future<void> _silentRefreshTicketDetail() async {
-    final result = await _ticketService.getTicketDetail(widget.ticket.id);
-    if (mounted && result['success'] == true && result['data'] is Map) {
-      final data = Map<String, dynamic>.from(result['data'] as Map);
-      final cacheKey = CacheService.ticketDetailKey(widget.ticket.id);
-      await CacheService.put(cacheKey, data, ttlSeconds: 600);
-      _applyDetailData(data);
+    if (_isSilentRefreshing) return;
+    _isSilentRefreshing = true;
+    try {
+      final result = await _ticketService.getTicketDetail(widget.ticket.id);
+      if (mounted && result['success'] == true && result['data'] is Map) {
+        final data = Map<String, dynamic>.from(result['data'] as Map);
+        final cacheKey = CacheService.ticketDetailKey(widget.ticket.id);
+        await CacheService.put(cacheKey, data, ttlSeconds: 600);
+        _applyDetailData(data);
+      }
+    } finally {
+      _isSilentRefreshing = false;
     }
   }
 

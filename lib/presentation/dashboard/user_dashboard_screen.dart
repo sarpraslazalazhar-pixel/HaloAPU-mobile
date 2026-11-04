@@ -46,18 +46,21 @@ class _UserDashboardScreenState extends ConsumerState<UserDashboardScreen> {
     });
   }
 
-  Future<void> _fetchDashboardData() async {
+  Future<void> _fetchDashboardData({bool isRefresh = false}) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
+    if (_dashboardData == null) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
-    ref.read(userProfileProvider.notifier).refresh();
-    ref.read(notificationProvider.notifier).refresh();
-    ref.read(csatProvider.notifier).fetchPendingCsat();
-    ref.read(userTicketProvider.notifier).refresh();
+    if (isRefresh) {
+      ref.read(userProfileProvider.notifier).refresh();
+      ref.read(notificationProvider.notifier).refresh();
+      ref.read(csatProvider.notifier).fetchPendingCsat();
+      ref.read(userTicketProvider.notifier).refresh();
+    }
     final result = await _dashboardRepo.getDashboardData();
-
     if (mounted) {
       setState(() {
         _isLoading = false;
@@ -109,7 +112,7 @@ class _UserDashboardScreenState extends ConsumerState<UserDashboardScreen> {
           SafeArea(
             bottom: false,
             child: RefreshIndicator(
-              onRefresh: _fetchDashboardData,
+              onRefresh: () => _fetchDashboardData(isRefresh: true),
               color: const Color(0xFF00768C),
               displacement: 40,
               child: SingleChildScrollView(

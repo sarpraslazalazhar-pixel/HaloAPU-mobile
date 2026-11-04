@@ -43,16 +43,19 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     });
   }
 
-  Future<void> _fetchDashboardData() async {
+  Future<void> _fetchDashboardData({bool isRefresh = false}) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
+    if (_dashboardData == null) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
-    ref.read(adminProfileProvider.notifier).refresh();
-    ref.read(notificationProvider.notifier).refresh();
+    if (isRefresh) {
+      ref.read(adminProfileProvider.notifier).refresh();
+      ref.read(notificationProvider.notifier).refresh();
+    }
     final result = await _dashboardRepo.getDashboardData();
-
     if (mounted) {
       setState(() {
         _isLoading = false;
@@ -103,7 +106,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           SafeArea(
             bottom: false,
             child: RefreshIndicator(
-              onRefresh: _fetchDashboardData,
+              onRefresh: () => _fetchDashboardData(isRefresh: true),
               color: AppTheme.oceanWater,
               displacement: 40,
               child: SingleChildScrollView(

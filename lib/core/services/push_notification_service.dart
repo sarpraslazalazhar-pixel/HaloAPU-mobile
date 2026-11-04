@@ -150,14 +150,15 @@ class PushNotificationService {
   }
 
   static int _lastUnreadCount = 0;
+  static bool _isCheckingNotifs = false;
 
   /// Memulai Real-time Poller untuk memeriksa notifikasi baru secara instan
   static void startRealtimePoller() {
     _pollingTimer?.cancel();
     _checkNewNotifications(isInitial: true);
 
-    // Polling setiap 15 detik (sangat ringan, hemat baterai, tanpa lag)
-    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    // Polling setiap 25 detik (hemat baterai & ramah server)
+    _pollingTimer = Timer.periodic(const Duration(seconds: 25), (_) {
       _checkNewNotifications();
     });
   }
@@ -170,11 +171,12 @@ class PushNotificationService {
 
   /// Memeriksa notifikasi baru secara efisien dan membunyikan alert lokal jika ada pembaruan status
   static Future<void> _checkNewNotifications({bool isInitial = false}) async {
+    if (_isCheckingNotifs) return;
+    _isCheckingNotifs = true;
     try {
       const storage = FlutterSecureStorage();
       final token = await storage.read(key: 'auth_token');
       if (token == null || token.isEmpty) return;
-
       final apiClient = ApiClient();
       // 1. Cek jumlah unread secara ringan terlebih dahulu
       final countRes = await apiClient.dio.get('/notifications/unread-count');
@@ -222,6 +224,8 @@ class PushNotificationService {
       }
     } catch (_) {
       // Abaikan error jaringan sementara
+    } finally {
+      _isCheckingNotifs = false;
     }
   }
 
