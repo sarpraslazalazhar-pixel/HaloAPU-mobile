@@ -81,7 +81,7 @@ jobs:
           path: build/app/outputs/bundle/productionRelease/*.aab
   build-ios:
     runs-on: macos-15
-    if: github.event_name == 'workflow_dispatch' && (inputs.build_target == 'all' || inputs.build_target == 'ios')
+    if: github.event_name != 'workflow_dispatch' || inputs.build_target == 'all' || inputs.build_target == 'ios'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -117,10 +117,11 @@ jobs:
 
       - name: Package unsigned Staging IPA
         run: |
+          mkdir -p build/ios/ipa
           cd build/ios/iphoneos
           mkdir -p Payload
           cp -r Runner.app Payload/
-          zip -r HaloAPU-Staging-iOS-unsigned.ipa Payload
+          zip -r ../ipa/HaloAPU-Staging-iOS-unsigned.ipa Payload
           rm -rf Payload Runner.app
 
       - name: Build iOS Production (unsigned)
@@ -130,20 +131,21 @@ jobs:
 
       - name: Package unsigned Production IPA
         run: |
+          mkdir -p build/ios/ipa
           cd build/ios/iphoneos
           mkdir -p Payload
           cp -r Runner.app Payload/
-          zip -r HaloAPU-Production-iOS-unsigned.ipa Payload
-          rm -rf Payload
+          zip -r ../ipa/HaloAPU-Production-iOS-unsigned.ipa Payload
+          rm -rf Payload Runner.app
 
       - name: Upload iOS Staging IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa-staging
-          path: build/ios/iphoneos/HaloAPU-Staging-iOS-unsigned.ipa
+          path: build/ios/ipa/HaloAPU-Staging-iOS-unsigned.ipa
 
       - name: Upload iOS Production IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa-production
-          path: build/ios/iphoneos/HaloAPU-Production-iOS-unsigned.ipa
+          path: build/ios/ipa/HaloAPU-Production-iOS-unsigned.ipa
