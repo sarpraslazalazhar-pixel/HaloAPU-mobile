@@ -53,6 +53,7 @@ sealed class TicketModel with _$TicketModel {
       'sla_resolution_deadline',
       'is_sla_breached',
       'is_breached',
+      'is_sla_paused',
     ];
 
     final hasExtraKeys = extraKeys.any((k) => map.containsKey(k) && map[k] != null);
@@ -183,7 +184,8 @@ extension TicketModelX on TicketModel {
   bool get isSlaBreached =>
       parsedFormData?['is_sla_breached'] == true ||
       parsedFormData?['is_breached'] == true;
-  bool get isSlaPaused => status == TicketStatus.pending;
+  bool get isSlaPaused =>
+      parsedFormData?['is_sla_paused'] == true || status == TicketStatus.pending;
   String get statusIndonesianLabel {
     switch (status) {
       case TicketStatus.open:
