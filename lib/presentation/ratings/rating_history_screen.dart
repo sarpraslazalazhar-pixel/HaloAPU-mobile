@@ -70,120 +70,190 @@ class _RatingHistoryScreenState extends ConsumerState<RatingHistoryScreen> {
       ),
       body: ratingsState.when(
         loading: () => const _RatingShimmerList(),
-        error: (error, stack) => Center(child: Text('Error: $error')),
-        data: (ratings) => RefreshIndicator(
+        error: (error, stack) => RefreshIndicator(
           onRefresh: () async {
             if (!widget.isAdmin) {
               ref.read(csatProvider.notifier).fetchPendingCsat();
             }
             return ref
-              .read((widget.isAdmin ? adminRatingProvider : ratingProvider).notifier)
-              .refresh();
+                .read((widget.isAdmin ? adminRatingProvider : ratingProvider).notifier)
+                .refresh();
           },
           color: AppTheme.oceanWater,
-          child: ratings.isEmpty
-              ? const _EmptyRatingState()
-              : CustomScrollView(
-                  controller: _scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: EntranceAnimation(
-                        child: _RatingSummaryCard(
-                          ratings: ratings,
-                          label: widget.isAdmin
-                              ? 'rating tiket yang Anda tangani'
-                              : 'penilaian layanan',
-                        ),
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: SizedBox(
+                height: constraints.maxHeight,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.wifi_off_rounded, size: 64, color: Colors.grey.shade400),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Belum dapat terhubung',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
-                    ),
-                    if (!widget.isAdmin && csatState != null)
-                      csatState.pendingCsats.when(
-                        data: (pending) {
-                          if (pending.isEmpty) return const SliverToBoxAdapter(child: SizedBox());
-                          return SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 24, left: 24, right: 24),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Perlu Dinilai',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: -0.5,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  ...pending.map((p) => EntranceAnimation(
-                                    child: _buildPendingCard(context, p, ref),
-                                  )),
-                                ],
-                              ),
-                            ),
-                          );
+                      const SizedBox(height: 6),
+                      Text(
+                        'Tarik ke bawah atau tekan coba lagi untuk memuat penilaian.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                      ),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          if (!widget.isAdmin) {
+                            ref.read(csatProvider.notifier).fetchPendingCsat();
+                          }
+                          ref
+                              .read((widget.isAdmin ? adminRatingProvider : ratingProvider).notifier)
+                              .refresh();
                         },
-                        loading: () => const SliverToBoxAdapter(child: SizedBox()),
-                        error: (e, s) => const SliverToBoxAdapter(child: SizedBox()),
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: const Text('Coba Lagi'),
                       ),
-                    SliverToBoxAdapter(
-                      child: EntranceAnimation(
-                        delay: const Duration(milliseconds: 120),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-                          child: Row(
-                            children: [
-                              Text(
-                                widget.isAdmin ? 'Rating dari Karyawan' : 'Penilaian Anda',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: -0.5,
-                                ),
-                              ),
-                              const Spacer(),
-                              Text(
-                                '${ratings.length} rating',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade500,
-                                ),
-                              ),
-                            ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        data: (ratings) {
+          final pendingList = csatState?.pendingCsats.valueOrNull ?? [];
+          final hasPending = !widget.isAdmin && pendingList.isNotEmpty;
+          final isCompletelyEmpty = ratings.isEmpty && !hasPending;
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              if (!widget.isAdmin) {
+                ref.read(csatProvider.notifier).fetchPendingCsat();
+              }
+              return ref
+                  .read((widget.isAdmin ? adminRatingProvider : ratingProvider).notifier)
+                  .refresh();
+            },
+            color: AppTheme.oceanWater,
+            child: isCompletelyEmpty
+                ? _EmptyRatingState(isAdmin: widget.isAdmin)
+                : CustomScrollView(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      if (ratings.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: EntranceAnimation(
+                            child: _RatingSummaryCard(
+                              ratings: ratings,
+                              label: widget.isAdmin
+                                  ? 'rating tiket yang Anda tangani'
+                                  : 'penilaian layanan',
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final rating = ratings[index];
-                            return EntranceAnimation(
-                              delay: Duration(milliseconds: 160 + (index * 70)),
+                      if (!widget.isAdmin && csatState != null)
+                        csatState.pendingCsats.when(
+                          data: (pending) {
+                            if (pending.isEmpty) return const SliverToBoxAdapter(child: SizedBox());
+                            return SliverToBoxAdapter(
                               child: Padding(
-                                padding: const EdgeInsets.only(bottom: 16),
-                                child: _RatingCard(rating: rating),
+                                padding: const EdgeInsets.only(top: 24, left: 24, right: 24),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Perlu Dinilai',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: -0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    ...pending.map((p) => EntranceAnimation(
+                                      child: _buildPendingCard(context, p, ref),
+                                    )),
+                                  ],
+                                ),
                               ),
                             );
                           },
-                          childCount: ratings.length,
+                          loading: () => const SliverToBoxAdapter(child: SizedBox()),
+                          error: (e, s) => const SliverToBoxAdapter(child: SizedBox()),
+                        ),
+                      SliverToBoxAdapter(
+                        child: EntranceAnimation(
+                          delay: const Duration(milliseconds: 120),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+                            child: Row(
+                              children: [
+                                Text(
+                                  widget.isAdmin ? 'Rating dari Karyawan' : 'Penilaian Anda',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  '${ratings.length} rating',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: PaginationFooter(
-                        isLoading: _isLoadingMore,
-                        hasMore: ref
-                            .read((widget.isAdmin ? adminRatingProvider : ratingProvider).notifier)
-                            .hasMore,
+                      if (ratings.isNotEmpty)
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final rating = ratings[index];
+                                return EntranceAnimation(
+                                  delay: Duration(milliseconds: 160 + (index * 70)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    child: _RatingCard(rating: rating, isAdmin: widget.isAdmin),
+                                  ),
+                                );
+                              },
+                              childCount: ratings.length,
+                            ),
+                          ),
+                        )
+                      else
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
+                            child: Center(
+                              child: Text(
+                                'Belum ada riwayat penilaian sebelumnya.',
+                                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                              ),
+                            ),
+                          ),
+                        ),
+                      SliverToBoxAdapter(
+                        child: PaginationFooter(
+                          isLoading: _isLoadingMore,
+                          hasMore: ref
+                              .read((widget.isAdmin ? adminRatingProvider : ratingProvider).notifier)
+                              .hasMore,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-        ),
+                    ],
+                  ),
+          );
+        },
       ),
       extendBody: true,
       bottomNavigationBar: widget.isAdmin
@@ -210,8 +280,8 @@ class _RatingHistoryScreenState extends ConsumerState<RatingHistoryScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
-            final dummyTicket = TicketModel(
-              id: pending.id,
+            final ticketSnapshot = TicketModel(
+              id: pending.id.isNotEmpty ? pending.id : pending.ticketId,
               title: pending.ticketTitle,
               description: '',
               category: pending.category,
@@ -219,7 +289,7 @@ class _RatingHistoryScreenState extends ConsumerState<RatingHistoryScreen> {
               createdAt: DateTime.tryParse(pending.completedAt) ?? DateTime.now(),
               requesterName: '',
             );
-            context.push('/tickets/user/detail', extra: dummyTicket).then((_) {
+            context.push('/tickets/user/detail', extra: ticketSnapshot).then((_) {
               ref.read(csatProvider.notifier).fetchPendingCsat();
               ref.read(ratingProvider.notifier).refresh();
             });
@@ -335,9 +405,9 @@ class _RatingSummaryCard extends StatelessWidget {
 
 class _RatingCard extends StatelessWidget {
   final RatingModel rating;
+  final bool isAdmin;
 
-  const _RatingCard({required this.rating});
-
+  const _RatingCard({required this.rating, this.isAdmin = false});
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -357,8 +427,8 @@ class _RatingCard extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: () {
-            final dummyTicket = TicketModel(
-              id: rating.ticketId,
+            final ticketSnapshot = TicketModel(
+              id: rating.ticketId.isNotEmpty ? rating.ticketId : rating.id,
               title: rating.ticketTitle,
               description: '',
               category: rating.category,
@@ -366,7 +436,10 @@ class _RatingCard extends StatelessWidget {
               createdAt: rating.createdAt,
               requesterName: '',
             );
-            context.push('/tickets/user/detail', extra: dummyTicket);
+            context.push(
+              isAdmin ? '/tickets/admin/detail' : '/tickets/user/detail',
+              extra: ticketSnapshot,
+            );
           },
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -473,8 +546,9 @@ class _RatingShimmerList extends StatelessWidget {
 }
 
 class _EmptyRatingState extends StatelessWidget {
-  const _EmptyRatingState();
+  final bool isAdmin;
 
+  const _EmptyRatingState({this.isAdmin = false});
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -504,9 +578,11 @@ class _EmptyRatingState extends StatelessWidget {
                     ),
                     SizedBox(height: 6),
                     Text(
-                      'Rating layanan yang pernah Anda berikan\nakan muncul di sini.',
+                      isAdmin
+                          ? 'Rating layanan dari karyawan untuk tiket yang Anda tangani akan muncul di sini.'
+                          : 'Rating layanan yang pernah Anda berikan\nakan muncul di sini.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                      style: const TextStyle(fontSize: 13, color: Colors.grey),
                     ),
                   ],
                 ),

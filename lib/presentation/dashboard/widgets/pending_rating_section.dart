@@ -12,7 +12,6 @@ class _PendingRatingItem {
   final String title;
   final String category;
   final String? date;
-  final bool isMock;
 
   const _PendingRatingItem({
     required this.id,
@@ -20,7 +19,6 @@ class _PendingRatingItem {
     required this.title,
     required this.category,
     this.date,
-    this.isMock = false,
   });
 }
 
@@ -50,7 +48,6 @@ class _PendingRatingSectionState extends ConsumerState<PendingRatingSection> {
           title: p.ticketTitle,
           category: p.category.isNotEmpty ? p.category : 'Layanan IT',
           date: _formatDate(p.completedAt),
-          isMock: false,
         ));
       }
     }
@@ -70,33 +67,10 @@ class _PendingRatingSectionState extends ConsumerState<PendingRatingSection> {
           title: t.title,
           category: t.category.isNotEmpty ? t.category : 'Layanan IT',
           date: 'Selesai',
-          isMock: false,
         ));
       }
     }
 
-    // 3. Fallback mock 2 item contoh agar langsung tampil 2 kotak seperti gambar user
-    if (items.isEmpty) {
-      const mock1 = _PendingRatingItem(
-        id: 'mock-wifi',
-        ticketId: 'TCK-8821',
-        title: 'Pemasangan Router WiFi Ruang Rapat',
-        category: 'Jaringan & Internet',
-        date: 'Hari ini',
-        isMock: true,
-      );
-      const mock2 = _PendingRatingItem(
-        id: 'mock-laptop',
-        ticketId: 'TCK-8819',
-        title: 'Perbaikan Laptop HRD',
-        category: 'Perangkat Keras',
-        date: 'Kemarin',
-        isMock: true,
-      );
-
-      if (!_dismissedIds.contains(mock1.id)) items.add(mock1);
-      if (!_dismissedIds.contains(mock2.id)) items.add(mock2);
-    }
 
     return items;
   }
@@ -430,19 +404,14 @@ class _RatingModalSheetState extends ConsumerState<_RatingModalSheet> {
   Future<void> _submitRating() async {
     setState(() => _isSubmitting = true);
     final comment = _commentController.text.trim();
-
     try {
-      if (!widget.item.isMock) {
-        await _ticketService.rateTicket(
-          widget.item.ticketId,
-          _selectedRating,
-          comment: comment.isNotEmpty ? comment : null,
-        );
-        ref.read(csatProvider.notifier).fetchPendingCsat();
-        ref.read(userTicketProvider.notifier).refresh();
-      } else {
-        await Future.delayed(const Duration(milliseconds: 350));
-      }
+      await _ticketService.rateTicket(
+        widget.item.ticketId,
+        _selectedRating,
+        comment: comment.isNotEmpty ? comment : null,
+      );
+      ref.read(csatProvider.notifier).fetchPendingCsat();
+      ref.read(userTicketProvider.notifier).refresh();
 
       widget.onRatingSuccess();
 

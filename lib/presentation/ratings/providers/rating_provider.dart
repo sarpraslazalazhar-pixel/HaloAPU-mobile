@@ -11,15 +11,8 @@ class RatingNotifier extends StateNotifier<AsyncValue<List<RatingModel>>> {
   int _lastPage = 1;
   bool _isLoadingMore = false;
 
-  final List<RatingModel>? initialRatings;
-
-  RatingNotifier(this._repository, {this.initialRatings}) : super(const AsyncValue.loading()) {
-    if (initialRatings != null) {
-      _allRatings = initialRatings!;
-      state = AsyncValue.data(_allRatings);
-    } else {
-      _loadInitial();
-    }
+  RatingNotifier(this._repository) : super(const AsyncValue.loading()) {
+    _loadInitial();
   }
 
   bool get hasMore => _currentPage < _lastPage;
@@ -37,7 +30,7 @@ class RatingNotifier extends StateNotifier<AsyncValue<List<RatingModel>>> {
         category: csat.category,
         score: csat.score,
         comment: csat.comment,
-        createdAt: DateTime.parse(csat.createdAt),
+        createdAt: DateTime.tryParse(csat.createdAt) ?? DateTime.now(),
       )).toList();
       
       // Assuming we get total pages from API or handle it. For now, we fetch next page to check if more.
@@ -66,7 +59,7 @@ class RatingNotifier extends StateNotifier<AsyncValue<List<RatingModel>>> {
           category: csat.category,
           score: csat.score,
           comment: csat.comment,
-          createdAt: DateTime.parse(csat.createdAt),
+        createdAt: DateTime.tryParse(csat.createdAt) ?? DateTime.now(),
         )).toList();
         
         _allRatings = [..._allRatings, ...newRatings];
@@ -87,77 +80,6 @@ class RatingNotifier extends StateNotifier<AsyncValue<List<RatingModel>>> {
   }
 }
 
-List<RatingModel> _buildAdminMockRatings() {
-  final now = DateTime.now();
-  final handCrafted = [
-    RatingModel(
-      id: 'RA-001',
-      ticketId: 'TKT-20260720-004',
-      ticketTitle: 'Install Software Design',
-      category: 'IT Support',
-      score: 5,
-      comment: 'Pengerjaan cepat dan admin sangat membantu.',
-      createdAt: now.subtract(const Duration(days: 8)),
-    ),
-    RatingModel(
-      id: 'RA-002',
-      ticketId: 'TKT-20260728-005',
-      ticketTitle: 'Lampu Toilet Mati',
-      category: 'General Affair',
-      score: 4,
-      comment: 'Tim cepat datang memperbaiki.',
-      createdAt: now.subtract(const Duration(hours: 20)),
-    ),
-    RatingModel(
-      id: 'RA-003',
-      ticketId: 'TKT-20260727-006',
-      ticketTitle: 'Printer Error',
-      category: 'IT Support',
-      score: 5,
-      createdAt: now.subtract(const Duration(days: 1, hours: 5)),
-    ),
-  ];
-
-  const titles = [
-    'Perbaikan Jaringan Kantor',
-    'Pengadaan Meja Baru',
-    'Akses Aplikasi Keuangan',
-    'Perbaikan Pintu Ruangan',
-    'Bantuan Instalasi Aplikasi',
-    'Penggantian Monitor',
-    'Permintaan Kartu Akses',
-    'Perawatan Kendaraan Dinas',
-  ];
-  const categories = ['IT Support', 'General Affair', 'HR', 'Keuangan', 'Operasional'];
-  const comments = [
-    'Admin merespons dengan cepat.',
-    'Solusi diberikan dengan jelas.',
-    'Sangat membantu, terima kasih.',
-    'Prosesnya lumayan cepat.',
-    'Pelayanan memuaskan.',
-    'Kurang cepat, tapi hasil akhir baik.',
-  ];
-  const scores = [5, 4, 5, 3, 4, 5];
-
-  // ID tiket yang ditangani admin (status selesai pada daftar admin).
-  const handledTicketIds = [4, 9, 14, 19, 24, 29, 34];
-
-  final generated = List.generate(24, (i) {
-    final ticketIndex = handledTicketIds[i % handledTicketIds.length];
-    return RatingModel(
-      id: 'RA-GEN-${(i + 1).toString().padLeft(3, '0')}',
-      ticketId: 'TKT-GEN-${ticketIndex.toString().padLeft(4, '0')}',
-      ticketTitle: titles[i % titles.length],
-      category: categories[i % categories.length],
-      score: scores[i % scores.length],
-      comment: i % 3 == 0 ? null : comments[i % comments.length],
-      createdAt: now.subtract(Duration(days: 2 + (i * 2))),
-    );
-  });
-
-  return [...handCrafted, ...generated];
-}
-
 final ratingProvider =
     StateNotifierProvider<RatingNotifier, AsyncValue<List<RatingModel>>>(
   (ref) => RatingNotifier(ref.watch(csatRepositoryProvider)),
@@ -165,5 +87,5 @@ final ratingProvider =
 
 final adminRatingProvider =
     StateNotifierProvider<RatingNotifier, AsyncValue<List<RatingModel>>>(
-  (ref) => RatingNotifier(ref.watch(csatRepositoryProvider), initialRatings: _buildAdminMockRatings()),
+  (ref) => RatingNotifier(ref.watch(csatRepositoryProvider)),
 );
