@@ -557,7 +557,7 @@ class _EmptyRatingState extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           child: SizedBox(
             height: constraints.maxHeight,
-            child: const EntranceAnimation(
+            child: EntranceAnimation(
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
