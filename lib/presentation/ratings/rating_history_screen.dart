@@ -562,13 +562,13 @@ class _EmptyRatingState extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.star_outline_rounded,
                       size: 72,
                       color: AppTheme.warning,
                     ),
-                    SizedBox(height: 16),
-                    Text(
+                    const SizedBox(height: 16),
+                    const Text(
                       'Belum ada penilaian',
                       style: TextStyle(
                         fontSize: 16,
@@ -576,7 +576,7 @@ class _EmptyRatingState extends StatelessWidget {
                         color: Colors.black87,
                       ),
                     ),
-                    SizedBox(height: 6),
+                    const SizedBox(height: 6),
                     Text(
                       isAdmin
                           ? 'Rating layanan dari karyawan untuk tiket yang Anda tangani akan muncul di sini.'
