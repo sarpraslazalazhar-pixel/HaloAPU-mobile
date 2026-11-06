@@ -214,19 +214,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                             alignment: Alignment.center,
                                             child: Row(
                                               mainAxisAlignment: MainAxisAlignment.center,
+                                              mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Icon(
                                                   Icons.person_outline_rounded,
-                                                  size: 16,
+                                                  size: 15,
                                                   color: !_isAdmin ? AppTheme.oceanWater : Colors.grey.shade600,
                                                 ),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  'Pengguna / User',
-                                                  style: TextStyle(
-                                                    fontSize: 12.5,
-                                                    fontWeight: !_isAdmin ? FontWeight.bold : FontWeight.w600,
-                                                    color: !_isAdmin ? AppTheme.oceanWater : Colors.grey.shade600,
+                                                const SizedBox(width: 5),
+                                                Flexible(
+                                                  child: Text(
+                                                    'User',
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: !_isAdmin ? FontWeight.bold : FontWeight.w600,
+                                                      color: !_isAdmin ? AppTheme.oceanWater : Colors.grey.shade600,
+                                                    ),
                                                   ),
                                                 ),
                                               ],
@@ -255,19 +260,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                             alignment: Alignment.center,
                                             child: Row(
                                               mainAxisAlignment: MainAxisAlignment.center,
+                                              mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Icon(
                                                   Icons.support_agent_rounded,
-                                                  size: 16,
+                                                  size: 15,
                                                   color: _isAdmin ? AppTheme.oceanWater : Colors.grey.shade600,
                                                 ),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  'Admin / Operator',
-                                                  style: TextStyle(
-                                                    fontSize: 12.5,
-                                                    fontWeight: _isAdmin ? FontWeight.bold : FontWeight.w600,
-                                                    color: _isAdmin ? AppTheme.oceanWater : Colors.grey.shade600,
+                                                const SizedBox(width: 5),
+                                                Flexible(
+                                                  child: Text(
+                                                    'Admin',
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: _isAdmin ? FontWeight.bold : FontWeight.w600,
+                                                      color: _isAdmin ? AppTheme.oceanWater : Colors.grey.shade600,
+                                                    ),
                                                   ),
                                                 ),
                                               ],
