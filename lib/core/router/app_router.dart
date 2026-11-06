@@ -93,7 +93,12 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/forgot-password',
-      pageBuilder: (context, state) => _fadeSlidePage(state, const ForgotPasswordScreen()),
+      pageBuilder: (context, state) {
+        final isAdmin = state.extra as bool? ??
+            state.uri.queryParameters['role'] == 'admin' ||
+            state.uri.queryParameters['is_admin'] == 'true';
+        return _fadeSlidePage(state, ForgotPasswordScreen(initialIsAdmin: isAdmin));
+      },
     ),
     GoRoute(
       path: '/help',

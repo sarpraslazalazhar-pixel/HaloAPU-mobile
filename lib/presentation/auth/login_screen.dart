@@ -433,7 +433,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     ),
                                     TextButton(
                                       onPressed: () {
-                                        context.push('/forgot-password');
+                                        final isLikelyAdmin = _emailController.text.trim().toLowerCase().contains('admin');
+                                        context.push(isLikelyAdmin ? '/forgot-password?role=admin' : '/forgot-password');
                                       },
                                       style: TextButton.styleFrom(
                                         padding: EdgeInsets.zero,

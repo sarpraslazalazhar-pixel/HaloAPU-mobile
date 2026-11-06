@@ -120,9 +120,12 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> forgotPassword(String email) async {
+  Future<Map<String, dynamic>> forgotPassword(String identifier, {bool isAdmin = false}) async {
     try {
-      final response = await _dio.post('/forgot-password', data: {'email': email});
+      final response = await _dio.post('/forgot-password', data: {
+        'email': identifier,
+        'is_admin': isAdmin,
+      });
       return {
         'success': true,
         'message': response.data['message'] ?? 'Tautan reset password telah dikirim ke email Anda.'

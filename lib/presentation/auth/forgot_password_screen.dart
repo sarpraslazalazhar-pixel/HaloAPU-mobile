@@ -5,7 +5,8 @@ import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/core/services/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  final bool initialIsAdmin;
+  const ForgotPasswordScreen({super.key, this.initialIsAdmin = false});
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -15,7 +16,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _emailController = TextEditingController();
   final AuthService _authService = AuthService();
   bool _isLoading = false;
+  late bool _isAdmin;
 
+  @override
+  void initState() {
+    super.initState();
+    _isAdmin = widget.initialIsAdmin;
+  }
   @override
   void dispose() {
     _emailController.dispose();
@@ -25,11 +32,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _handleResetPassword() async {
     if (_isLoading) return;
 
-    final email = _emailController.text.trim();
-    if (email.isEmpty) {
+    final identifier = _emailController.text.trim();
+    if (identifier.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Silakan masukkan email Anda.'),
+        SnackBar(
+          content: Text(_isAdmin
+              ? 'Silakan masukkan email atau username akun admin Anda.'
+              : 'Silakan masukkan email atau username akun Anda.'),
           backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
@@ -37,11 +46,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
-    final emailRegex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$');
-    if (!emailRegex.hasMatch(email)) {
+    if (identifier.length < 3) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Format email tidak valid.'),
+          content: Text('Email atau username minimal 3 karakter.'),
           backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
@@ -52,7 +60,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final result = await _authService.forgotPassword(email);
+      final result = await _authService.forgotPassword(identifier, isAdmin: _isAdmin);
 
       if (!mounted) return;
 
@@ -142,7 +150,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Masukkan email yang terdaftar untuk mengatur ulang kata sandi Anda.',
+                        _isAdmin
+                            ? 'Masukkan email atau username admin yang terdaftar untuk mengatur ulang kata sandi.'
+                            : 'Masukkan email atau username yang terdaftar untuk mengatur ulang kata sandi Anda.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 14,
@@ -173,19 +183,118 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                const Text(
-                                  'Email',
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                // Role Toggle: User vs Admin
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: Colors.grey.shade200),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: GestureDetector(
+                                          onTap: _isLoading ? null : () => setState(() => _isAdmin = false),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(vertical: 9),
+                                            decoration: BoxDecoration(
+                                              color: !_isAdmin ? Colors.white : Colors.transparent,
+                                              borderRadius: BorderRadius.circular(10),
+                                              boxShadow: !_isAdmin
+                                                  ? [
+                                                      BoxShadow(
+                                                        color: Colors.black.withValues(alpha: 0.06),
+                                                        blurRadius: 4,
+                                                        offset: const Offset(0, 1),
+                                                      )
+                                                    ]
+                                                  : null,
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.person_outline_rounded,
+                                                  size: 16,
+                                                  color: !_isAdmin ? AppTheme.oceanWater : Colors.grey.shade600,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  'Pengguna / User',
+                                                  style: TextStyle(
+                                                    fontSize: 12.5,
+                                                    fontWeight: !_isAdmin ? FontWeight.bold : FontWeight.w600,
+                                                    color: !_isAdmin ? AppTheme.oceanWater : Colors.grey.shade600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: GestureDetector(
+                                          onTap: _isLoading ? null : () => setState(() => _isAdmin = true),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(vertical: 9),
+                                            decoration: BoxDecoration(
+                                              color: _isAdmin ? Colors.white : Colors.transparent,
+                                              borderRadius: BorderRadius.circular(10),
+                                              boxShadow: _isAdmin
+                                                  ? [
+                                                      BoxShadow(
+                                                        color: Colors.black.withValues(alpha: 0.06),
+                                                        blurRadius: 4,
+                                                        offset: const Offset(0, 1),
+                                                      )
+                                                    ]
+                                                  : null,
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.support_agent_rounded,
+                                                  size: 16,
+                                                  color: _isAdmin ? AppTheme.oceanWater : Colors.grey.shade600,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  'Admin / Operator',
+                                                  style: TextStyle(
+                                                    fontSize: 12.5,
+                                                    fontWeight: _isAdmin ? FontWeight.bold : FontWeight.w600,
+                                                    color: _isAdmin ? AppTheme.oceanWater : Colors.grey.shade600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 18),
+                                Text(
+                                  _isAdmin ? 'Email atau Username Admin' : 'Email atau Username User',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                                 ),
                                 const SizedBox(height: 8),
                                 TextField(
                                   controller: _emailController,
-                                  keyboardType: TextInputType.emailAddress,
+                                  keyboardType: TextInputType.text,
                                   enabled: !_isLoading,
                                   decoration: InputDecoration(
-                                    hintText: 'contoh@email.com',
-                                    hintStyle: TextStyle(color: Colors.grey.shade400),
-                                    prefixIcon: const Icon(Icons.email_outlined, color: Colors.grey),
+                                    hintText: _isAdmin ? 'cth: superadmin atau email' : 'cth: username atau email',
+                                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                                    prefixIcon: Icon(
+                                      _isAdmin ? Icons.badge_outlined : Icons.account_circle_outlined,
+                                      color: Colors.grey,
+                                    ),
                                     filled: true,
                                     fillColor: Colors.white,
                                     border: OutlineInputBorder(
