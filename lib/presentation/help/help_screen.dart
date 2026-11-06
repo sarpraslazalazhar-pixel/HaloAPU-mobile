@@ -102,10 +102,10 @@ class HelpScreen extends StatelessWidget {
     return DefaultTabController(
       length: _faqData.keys.length,
       child: Scaffold(
-        extendBodyBehindAppBar: true,
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
+          backgroundColor: const Color(0xFFE0F4FE),
           elevation: 0,
+          surfaceTintColor: Colors.transparent,
           title: const Text(
             'Pusat Bantuan',
             style: TextStyle(color: AppTheme.oceanWater, fontWeight: FontWeight.bold),
@@ -152,9 +152,9 @@ class HelpScreen extends StatelessWidget {
                 ),
               ),
               SafeArea(
+                top: false,
                 child: Column(
                   children: [
-                    const SizedBox(height: kToolbarHeight + 48),
                     Expanded(
                       child: TabBarView(
                         children: _faqData.keys.map((String category) {
