@@ -54,6 +54,8 @@ sealed class TicketModel with _$TicketModel {
       'is_sla_breached',
       'is_breached',
       'is_sla_paused',
+      'is_booking_past',
+      'booking_end_time',
     ];
 
     final hasExtraKeys = extraKeys.any((k) => map.containsKey(k) && map[k] != null);
@@ -171,6 +173,108 @@ extension TicketModelX on TicketModel {
       category.toLowerCase().contains('peminjaman') ||
       title.toLowerCase().contains('peminjaman') ||
       parsedFormData?['dikembalikan_at'] != null;
+  bool get isKendaraan {
+    final cat = category.toLowerCase();
+    final tit = title.toLowerCase();
+    if (cat.contains('kendaraan') ||
+        cat.contains('mobil') ||
+        tit.contains('kendaraan') ||
+        tit.contains('mobil')) {
+      return true;
+    }
+    final form = parsedFormData;
+    if (form != null) {
+      for (final key in form.keys) {
+        final k = key.toLowerCase();
+        if (k.contains('kendaraan') ||
+            k.contains('mobil') ||
+            k.contains('plat') ||
+            k.contains('driver')) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool get isSchedulePast {
+    if (parsedFormData?['is_booking_past'] == true) return true;
+
+    final rawEnd = parsedFormData?['booking_end_time'] ??
+        parsedFormData?['tanggal_selesai'] ??
+        parsedFormData?['end_time'];
+    if (rawEnd != null) {
+      final parsed = DateTime.tryParse(rawEnd.toString());
+      if (parsed != null) {
+        return DateTime.now().isAfter(parsed);
+      }
+    }
+
+    final form = parsedFormData;
+    if (form != null && form.isNotEmpty) {
+      String? dateStr;
+      String? timeStr;
+
+      for (final entry in form.entries) {
+        final key = entry.key.toLowerCase();
+        final val = entry.value?.toString().trim();
+        if (val == null || val.isEmpty) continue;
+
+        if (dateStr == null && (key.contains('tanggal') || key.contains('tgl'))) {
+          if (RegExp(r'\d{4}[-/]\d{1,2}[-/]\d{1,2}').hasMatch(val) ||
+              RegExp(r'\d{1,2}[-/]\d{1,2}[-/]\d{4}').hasMatch(val)) {
+            dateStr = val;
+          }
+        }
+
+        if (timeStr == null &&
+            (key.contains('kembali') ||
+                key.contains('selesai') ||
+                key.contains('sampai') ||
+                key.contains('pengembalian'))) {
+          if (RegExp(r'^\d{1,2}:\d{2}(:\d{2})?$').hasMatch(val)) {
+            timeStr = val;
+          }
+        }
+      }
+
+      if (dateStr != null) {
+        try {
+          DateTime? date;
+          if (dateStr.contains('-')) {
+            final parts = dateStr.split('-');
+            if (parts[0].length == 4) {
+              date = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+            } else {
+              date = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+            }
+          } else if (dateStr.contains('/')) {
+            final parts = dateStr.split('/');
+            if (parts[0].length == 4) {
+              date = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+            } else {
+              date = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+            }
+          }
+
+          if (date != null) {
+            int hour = 23;
+            int minute = 59;
+            if (timeStr != null) {
+              final tParts = timeStr.split(':');
+              hour = int.parse(tParts[0]);
+              minute = int.parse(tParts[1]);
+            }
+            final endDateTime = DateTime(date.year, date.month, date.day, hour, minute);
+            return DateTime.now().isAfter(endDateTime);
+          }
+        } catch (_) {}
+      }
+    }
+
+    return false;
+  }
+
   bool get isSudahDikembalikan => parsedFormData?['dikembalikan_at'] != null;
   String? get dikembalikanAtFormatted => parsedFormData?['dikembalikan_at']?.toString();
   String? get kondisiKembali => parsedFormData?['kondisi_kembali']?.toString();

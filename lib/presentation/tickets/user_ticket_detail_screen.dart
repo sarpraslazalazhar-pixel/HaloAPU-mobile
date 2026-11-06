@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -29,7 +28,7 @@ class UserTicketDetailScreen extends ConsumerStatefulWidget {
 
 class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final ScrollController _chatScrollController = ScrollController();
+  final GlobalKey _chatBottomKey = GlobalKey();
   final FocusNode _chatFocusNode = FocusNode();
   final TextEditingController _messageController = TextEditingController();
   Timer? _pollingTimer;
@@ -208,10 +207,10 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
   }
 
   void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (_chatScrollController.hasClients) {
-        _chatScrollController.animateTo(
-          _chatScrollController.position.maxScrollExtent,
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_chatBottomKey.currentContext != null) {
+        Scrollable.ensureVisible(
+          _chatBottomKey.currentContext!,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
@@ -271,33 +270,6 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
     }
   }
 
-  Future<void> _acceptResult() async {
-    final confirmed = await _showConfirmDialog(
-      'Terima Solusi',
-      'Apakah Anda sudah puas dengan solusi yang diberikan? Setelah menerima, Anda akan diminta memberi rating.',
-      confirmText: 'Ya, Terima',
-      confirmColor: AppTheme.success,
-    );
-    if (confirmed != true) return;
-
-    setState(() => _isActionLoading = true);
-    final result = await _ticketService.acceptResult(widget.ticket.id);
-    if (mounted) {
-      setState(() => _isActionLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? (result['success'] ? 'Hasil diterima' : 'Gagal menerima')),
-          backgroundColor: result['success'] ? AppTheme.success : Colors.red,
-        ),
-      );
-      if (result['success']) {
-        // Show rating dialog
-        _showCsatBottomSheet();
-        ref.read(userTicketProvider.notifier).refresh();
-        await _loadTicketDetail();
-      }
-    }
-  }
 
   Future<void> _requestRevision() async {
     final controller = TextEditingController();
@@ -495,7 +467,6 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
   void dispose() {
     _pollingTimer?.cancel();
     _tabController.dispose();
-    _chatScrollController.dispose();
     _chatFocusNode.dispose();
     _messageController.dispose();
     super.dispose();
@@ -653,76 +624,67 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7FAFC),
-      extendBodyBehindAppBar: true,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(64),
-        child: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: AppBar(
-              backgroundColor: const Color(0xFFF7FAFC).withValues(alpha: 0.8),
-              elevation: 0,
-              centerTitle: true,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: AppTheme.oceanWater),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-              title: Text(
-                'Detail Tiket #${_currentTicket.id}',
-                style: const TextStyle(
-                  color: AppTheme.oceanWater,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              actions: [
-                if (_currentTicket.status == TicketStatus.open)
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, color: AppTheme.oceanWater),
-                    onSelected: (value) {
-                      if (value == 'cancel') _cancelTicket();
-                    },
-                    itemBuilder: (ctx) => [
-                      const PopupMenuItem(value: 'cancel', child: Row(
-                        children: [
-                          Icon(Icons.cancel_outlined, color: Colors.red, size: 20),
-                          SizedBox(width: 8),
-                          Text('Batalkan Tiket', style: TextStyle(color: Colors.red)),
-                        ],
-                      )),
-                    ],
-                  )
-                else
-                  IconButton(
-                    icon: const Icon(Icons.refresh, color: AppTheme.oceanWater),
-                    onPressed: _loadTicketDetail,
-                  ),
-              ],
-            ),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0.5,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppTheme.oceanWater),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Detail Tiket #${_currentTicket.id}',
+          style: const TextStyle(
+            color: AppTheme.oceanWater,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
           ),
         ),
+        actions: [
+          if (_currentTicket.status == TicketStatus.open)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: AppTheme.oceanWater),
+              onSelected: (value) {
+                if (value == 'cancel') _cancelTicket();
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                  value: 'cancel',
+                  child: Row(
+                    children: [
+                      Icon(Icons.cancel_outlined, color: Colors.red, size: 20),
+                      SizedBox(width: 8),
+                      Text('Batalkan Tiket', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.refresh, color: AppTheme.oceanWater),
+              onPressed: _loadTicketDetail,
+            ),
+        ],
       ),
       body: _isLoadingDetail
           ? const Center(child: CircularProgressIndicator(color: AppTheme.oceanWater))
           : NestedScrollView(
+              floatHeaderSlivers: true,
               headerSliverBuilder: (context, innerBoxIsScrolled) {
                 return [
                   SliverToBoxAdapter(
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 80),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          child: Column(
-                            children: [
-                              TicketStatusTimeline(ticket: _currentTicket),
-                              const SizedBox(height: 10),
-                              TicketSlaCard(ticket: _currentTicket),
-                              _buildAssetReturnCard(),
-                            ],
-                          ),
-                        ),
-                      ],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Column(
+                        children: [
+                          TicketStatusTimeline(ticket: _currentTicket),
+                          const SizedBox(height: 10),
+                          TicketSlaCard(ticket: _currentTicket),
+                          _buildAssetReturnCard(),
+                        ],
+                      ),
                     ),
                   ),
                   SliverPersistentHeader(
@@ -1227,7 +1189,6 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
     return RefreshIndicator(
       onRefresh: _silentRefreshTicketDetail,
       child: ListView(
-        controller: _chatScrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         children: [
@@ -1251,6 +1212,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
               alignment: Alignment.center,
               child: const Text('Belum ada pesan', style: TextStyle(color: Colors.grey)),
             ),
+          SizedBox(key: _chatBottomKey, height: 1),
         ],
       ),
     );
@@ -1395,50 +1357,27 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
               ),
 
             // Action Buttons for Solved tickets
-            if (isSolved && !_isResultAccepted)
+            // Action Buttons for Solved tickets (Minta Revisi jika diaktifkan)
+            if (isSolved && !_isResultAccepted && _isRevisionEnabled && _revisionCount < _maxRevisions)
               AnimatedCrossFade(
                 duration: const Duration(milliseconds: 200),
                 crossFadeState: isKeyboardOpen ? CrossFadeState.showFirst : CrossFadeState.showSecond,
                 firstChild: const SizedBox(height: 0, width: double.infinity),
-                secondChild: Column(
-                  children: [
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        if (_isRevisionEnabled && _revisionCount < _maxRevisions)
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _isActionLoading ? null : _requestRevision,
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                side: const BorderSide(color: AppTheme.brilliantBlue, width: 1.5),
-                                foregroundColor: AppTheme.brilliantBlue,
-                              ),
-                              child: const Text('Minta Revisi', style: TextStyle(fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                        if (_isRevisionEnabled && _revisionCount < _maxRevisions)
-                          const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: _isActionLoading ? null : _acceptResult,
-                            icon: _isActionLoading
-                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                : const Icon(Icons.check_circle, size: 18),
-                            label: const Text('Terima Solusi', style: TextStyle(fontWeight: FontWeight.bold)),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              backgroundColor: AppTheme.success,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                            ),
-                          ),
-                        ),
-                      ],
+                secondChild: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _isActionLoading ? null : _requestRevision,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        side: const BorderSide(color: AppTheme.brilliantBlue, width: 1.5),
+                        foregroundColor: AppTheme.brilliantBlue,
+                      ),
+                      child: const Text('Minta Revisi', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
-                  ],
+                  ),
                 ),
               ),
 
@@ -1526,6 +1465,11 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
     if (!isSolved) return const SizedBox.shrink();
 
     final isReturned = _currentTicket.isSudahDikembalikan;
+
+    // Kalau kendaraan sudah lewati waktu pas sudah selesai, hilangkan tombol/kartu kembalikan aset
+    if (!isReturned && _currentTicket.isKendaraan && _currentTicket.isSchedulePast) {
+      return const SizedBox.shrink();
+    }
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -1693,34 +1637,36 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
                 ),
               ),
             ] else ...[
-              const SizedBox(height: 12),
-              Material(
-                color: AppTheme.oceanWater,
-                borderRadius: BorderRadius.circular(10),
-                child: InkWell(
-                  onTap: _handleKembalikanAlat,
+              if (!(_currentTicket.isKendaraan && _currentTicket.isSchedulePast)) ...[
+                const SizedBox(height: 12),
+                Material(
+                  color: AppTheme.oceanWater,
                   borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    height: 40,
-                    alignment: Alignment.center,
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.assignment_return_outlined, size: 16, color: Colors.white),
-                        SizedBox(width: 6),
-                        Text(
-                          'Kembalikan Alat',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                  child: InkWell(
+                    onTap: _handleKembalikanAlat,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      height: 40,
+                      alignment: Alignment.center,
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.assignment_return_outlined, size: 16, color: Colors.white),
+                          SizedBox(width: 6),
+                          Text(
+                            'Kembalikan Alat',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
           ],
         ),

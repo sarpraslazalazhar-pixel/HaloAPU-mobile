@@ -46,7 +46,7 @@ class _AdminTicketDetailScreenState
   Timer? _pollingTimer;
   bool _isSilentRefreshing = false;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
-  final ScrollController _chatScrollController = ScrollController();
+  final GlobalKey _chatBottomKey = GlobalKey();
   final FocusNode _chatFocusNode = FocusNode();
   final TextEditingController _messageController = TextEditingController();
   final List<XFile> _replyAttachments = [];
@@ -208,17 +208,16 @@ class _AdminTicketDetailScreenState
   void dispose() {
     _pollingTimer?.cancel();
     _tabController.dispose();
-    _chatScrollController.dispose();
     _chatFocusNode.dispose();
     _messageController.dispose();
     super.dispose();
   }
 
   void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (_chatScrollController.hasClients) {
-        _chatScrollController.animateTo(
-          _chatScrollController.position.maxScrollExtent,
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_chatBottomKey.currentContext != null) {
+        Scrollable.ensureVisible(
+          _chatBottomKey.currentContext!,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
@@ -1239,6 +1238,7 @@ class _AdminTicketDetailScreenState
       body: _isLoadingDetail
           ? const Center(child: CircularProgressIndicator())
           : NestedScrollView(
+              floatHeaderSlivers: true,
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
             SliverToBoxAdapter(
@@ -1873,10 +1873,12 @@ class _AdminTicketDetailScreenState
       child: RefreshIndicator(
         onRefresh: _silentRefreshTicketDetail,
         child: ListView(
-          controller: _chatScrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: items,
+          children: [
+            ...items,
+            SizedBox(key: _chatBottomKey, height: 1),
+          ],
         ),
       ),
     );
@@ -2160,6 +2162,11 @@ class _AdminTicketDetailScreenState
 
     final isReturned = _ticket.isSudahDikembalikan;
 
+    // Kalau kendaraan sudah lewati waktu pas sudah selesai, hilangkan tombol/kartu kembalikan aset
+    if (!isReturned && _ticket.isKendaraan && _ticket.isSchedulePast) {
+      return const SizedBox.shrink();
+    }
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCubic,
@@ -2326,34 +2333,36 @@ class _AdminTicketDetailScreenState
                 ),
               ),
             ] else ...[
-              const SizedBox(height: 12),
-              Material(
-                color: AppTheme.oceanWater,
-                borderRadius: BorderRadius.circular(10),
-                child: InkWell(
-                  onTap: _handleKembalikanAlat,
+              if (!(_ticket.isKendaraan && _ticket.isSchedulePast)) ...[
+                const SizedBox(height: 12),
+                Material(
+                  color: AppTheme.oceanWater,
                   borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    height: 40,
-                    alignment: Alignment.center,
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.assignment_return_outlined, size: 16, color: Colors.white),
-                        SizedBox(width: 6),
-                        Text(
-                          'Tandai Alat Dikembalikan',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                  child: InkWell(
+                    onTap: _handleKembalikanAlat,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      height: 40,
+                      alignment: Alignment.center,
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.assignment_return_outlined, size: 16, color: Colors.white),
+                          SizedBox(width: 6),
+                          Text(
+                            'Tandai Alat Dikembalikan',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
           ],
         ),
