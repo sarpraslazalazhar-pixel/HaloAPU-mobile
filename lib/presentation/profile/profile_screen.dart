@@ -28,7 +28,7 @@ class ProfileScreen extends ConsumerWidget {
         slivers: [
           // Gradient SliverAppBar
           SliverAppBar(
-            expandedHeight: 260,
+            expandedHeight: 295,
             pinned: true,
             elevation: 0,
             backgroundColor: AppTheme.brilliantBlue,
@@ -419,9 +419,10 @@ class _ProfileHeroHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top + kToolbarHeight;
     return Container(
       decoration: const BoxDecoration(gradient: AppTheme.primaryGradient),
-      padding: const EdgeInsets.fromLTRB(20, 100, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, topPadding + 8, 20, 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -431,8 +432,8 @@ class _ProfileHeroHeader extends StatelessWidget {
             children: [
               // White ring
               Container(
-                width: 88,
-                height: 88,
+                width: 82,
+                height: 82,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 3),
@@ -448,7 +449,7 @@ class _ProfileHeroHeader extends StatelessWidget {
               AppAvatar(
                 name: profile.name.isNotEmpty ? profile.name : 'Pengguna',
                 imageUrl: profile.avatarUrl,
-                radius: 40,
+                radius: 37,
                 showBorder: false,
                 onTap: onAvatarTap,
               ),
@@ -479,15 +480,17 @@ class _ProfileHeroHeader extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // Name
           Text(
             profile.name,
             textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 20,
+              fontSize: 19,
               fontWeight: FontWeight.bold,
               letterSpacing: -0.4,
             ),
@@ -495,13 +498,14 @@ class _ProfileHeroHeader extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             '@${profile.username}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.8),
-              fontSize: 13,
+              fontSize: 12.5,
             ),
           ),
-          const SizedBox(height: 10),
-
+          const SizedBox(height: 8),
           // Position & division badges
           Wrap(
             alignment: WrapAlignment.center,
