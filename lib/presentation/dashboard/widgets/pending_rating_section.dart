@@ -118,26 +118,30 @@ class _PendingRatingSectionState extends ConsumerState<PendingRatingSection> {
       children: [
         // Header
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: [
               const Icon(
                 Icons.star_rounded,
-                size: 20,
+                size: 19,
                 color: Color(0xFFF59E0B),
               ),
-              const SizedBox(width: 8),
-              const Text(
-                'Menunggu Penilaian',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
+              const SizedBox(width: 6),
+              const Flexible(
+                child: Text(
+                  'Menunggu Penilaian',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFEF3C7),
                   borderRadius: BorderRadius.circular(10),
@@ -145,7 +149,7 @@ class _PendingRatingSectionState extends ConsumerState<PendingRatingSection> {
                 child: Text(
                   '${items.length} Tiket',
                   style: const TextStyle(
-                    fontSize: 10.5,
+                    fontSize: 10,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFFB45309),
                   ),
@@ -160,7 +164,7 @@ class _PendingRatingSectionState extends ConsumerState<PendingRatingSection> {
                   child: Text(
                     'Lihat Semua',
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF00768C),
                     ),
