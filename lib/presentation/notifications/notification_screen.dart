@@ -9,6 +9,8 @@ import '../widgets/entrance_animation.dart';
 import '../widgets/shimmer.dart';
 import '../widgets/pagination_footer.dart';
 import 'package:halo_apu_mobile/core/services/push_notification_service.dart';
+import 'package:halo_apu_mobile/core/services/ticket_service.dart';
+import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
 import 'providers/notification_provider.dart';
 
 class NotificationScreen extends ConsumerStatefulWidget {
@@ -62,21 +64,101 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
     );
   }
 
-  void _openNotification(NotificationModel notification) {
+  Future<void> _openNotification(NotificationModel notification) async {
     final notifier = ref.read(notificationProvider.notifier);
     notifier.markAsRead(notification.id);
 
-    final ticketId = notification.ticketId;
-    if (ticketId == null) return;
+    // 1. Resolve ticket ID (baik dari property ticketId maupun regex title/body)
+    String? rawTicketId = notification.ticketId;
+    if (rawTicketId == null || rawTicketId.trim().isEmpty) {
+      final match = RegExp(r'#?(\d{3}-?\d{3}-?\d{3})|#(\d{9})')
+          .firstMatch('${notification.title} ${notification.body}');
+      if (match != null) {
+        rawTicketId = match.group(1) ?? match.group(2);
+      }
+    }
+
+    // 2. Jika notifikasi rating / CSAT tanpa tiket spesifik
+    if (rawTicketId == null && notification.type == NotificationType.csat) {
+      context.push(widget.isAdmin ? '/ratings/admin' : '/ratings/history');
+      return;
+    }
+
+    if (rawTicketId == null || rawTicketId.trim().isEmpty) return;
+
+    final cleanId = rawTicketId.replaceAll('-', '').trim();
+
+    // 3. Cari dari cache provider lokal terlebih dahulu (cepat & tanpa delay)
     final tickets = ref
         .read(widget.isAdmin ? adminTicketProvider : userTicketProvider)
         .value;
-    final ticket = tickets?.where((t) => t.id == ticketId).firstOrNull;
-    if (ticket != null) {
-      context.push(
-        widget.isAdmin ? '/tickets/admin/detail' : '/tickets/user/detail',
-        extra: ticket,
-      );
+    final cachedTicket = tickets?.where((t) {
+      final tClean = t.id.replaceAll('-', '').trim();
+      return tClean == cleanId || t.id == rawTicketId;
+    }).firstOrNull;
+
+    if (cachedTicket != null) {
+      if (mounted) {
+        context.push(
+          widget.isAdmin ? '/tickets/admin/detail' : '/tickets/user/detail',
+          extra: cachedTicket,
+        );
+      }
+      return;
+    }
+
+    // 4. Jika belum ada di memory, tampilkan loading cepat & fetch tiket via API
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(color: AppTheme.oceanWater),
+      ),
+    );
+
+    try {
+      final ticketService = TicketService();
+      final res = await ticketService.getTicketDetail(cleanId);
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+
+      TicketModel targetTicket;
+      if (res['success'] == true && res['data'] is Map) {
+        targetTicket =
+            TicketModel.safeFromJson(Map<String, dynamic>.from(res['data'] as Map));
+      } else {
+        targetTicket = TicketModel(
+          id: cleanId,
+          title: notification.title,
+          category: 'Umum',
+          status: TicketStatus.open,
+          createdAt: notification.createdAt,
+          requesterName: 'Pengguna',
+          description: notification.body,
+        );
+      }
+
+      if (mounted) {
+        context.push(
+          widget.isAdmin ? '/tickets/admin/detail' : '/tickets/user/detail',
+          extra: targetTicket,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        context.push(
+          widget.isAdmin ? '/tickets/admin/detail' : '/tickets/user/detail',
+          extra: TicketModel(
+            id: cleanId,
+            title: notification.title,
+            category: 'Umum',
+            status: TicketStatus.open,
+            createdAt: notification.createdAt,
+            requesterName: 'Pengguna',
+            description: notification.body,
+          ),
+        );
+      }
     }
   }
 

@@ -238,7 +238,7 @@ class TicketCard extends StatelessWidget {
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: summaryItems.take(4).map((item) {
+                      children: summaryItems.take(3).map((item) {
                         return Container(
                           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                           decoration: BoxDecoration(

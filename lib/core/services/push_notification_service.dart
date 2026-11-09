@@ -327,11 +327,17 @@ class PushNotificationService {
         return;
       }
 
-      final ticketId = data['ticket_id']?.toString() ?? data['id']?.toString();
+      final ticketId = data['ticket_id']?.toString() ??
+          data['ticketId']?.toString() ??
+          (data['id'] != null && int.tryParse(data['id'].toString().replaceAll('-', '')) != null
+              ? data['id'].toString()
+              : null);
+
       if (ticketId != null && ticketId.isNotEmpty) {
+        final cleanId = ticketId.replaceAll('-', '').trim();
         try {
           final apiClient = ApiClient();
-          final response = await apiClient.dio.get('/tickets/$ticketId');
+          final response = await apiClient.dio.get('/tickets/$cleanId');
           if (response.statusCode == 200) {
             final ticketData = response.data['data'] ?? response.data;
             final ticket = TicketModel.safeFromJson(ticketData);
@@ -346,6 +352,33 @@ class PushNotificationService {
         } catch (e) {
           debugPrint('Error fetching ticket detail for notification deep link: $e');
         }
+
+        // Fallback navigasi jika jaringan offline/gagal: tetap buka detail tiket
+        final fallbackTicket = TicketModel(
+          id: cleanId,
+          title: data['title']?.toString() ?? 'Tiket #$cleanId',
+          category: 'Umum',
+          status: TicketStatus.open,
+          createdAt: DateTime.now(),
+          requesterName: 'Pengguna',
+          description: data['body']?.toString() ?? data['message']?.toString() ?? '',
+        );
+        if (role == 'admin') {
+          appRouter.push('/tickets/admin/detail', extra: fallbackTicket);
+        } else {
+          appRouter.push('/tickets/user/detail', extra: fallbackTicket);
+        }
+        return;
+      }
+
+      // Jika tipe CSAT / Rating
+      if (data['type'] == 'csat') {
+        if (role == 'admin') {
+          appRouter.push('/ratings/admin');
+        } else {
+          appRouter.push('/ratings/history');
+        }
+        return;
       }
 
       // Fallback: Navigasi ke halaman notifikasi

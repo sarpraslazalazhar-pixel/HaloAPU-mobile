@@ -340,10 +340,22 @@ extension TicketModelX on TicketModel {
       'sla_resolution_deadline',
       'is_sla_breached',
       'is_breached',
+      'is_sla_paused',
+      'is_booking_past',
+      'booking_end_time',
+      'deskripsi',
     };
 
     map.forEach((rawKey, value) {
-      if (internalKeys.contains(rawKey)) return;
+      final lowerKey = rawKey.trim().toLowerCase();
+      if (internalKeys.contains(lowerKey) ||
+          lowerKey.startsWith('is_') ||
+          lowerKey.startsWith('sla_') ||
+          lowerKey.contains('deadline') ||
+          lowerKey.contains('breached') ||
+          lowerKey == 'booking_end_time') {
+        return;
+      }
       if (value == null) return;
       final valStr = value.toString().trim();
       if (valStr.isEmpty) return;
