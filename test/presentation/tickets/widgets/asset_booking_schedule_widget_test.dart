@@ -40,9 +40,13 @@ void main() {
     ),
   ];
 
+  final futureDt = DateTime.now().add(const Duration(days: 7));
+  final futureDate =
+      '${futureDt.year}-${futureDt.month.toString().padLeft(2, '0')}-${futureDt.day.toString().padLeft(2, '0')}';
+
   final sampleCalendar = [
     MonitorCalendarModel(
-      date: '2026-10-19',
+      date: futureDate,
       bookings: [
         MonitorCalendarItemModel(
           id: 1,
@@ -100,7 +104,7 @@ void main() {
   testWidgets('Menampilkan banner "Sedang Digunakan" ketika aset yang dipakai dipilih', (tester) async {
     await tester.pumpWidget(createWidget(formData: {
       '101': 'Ruang Rapat Utama',
-      '102': '2026-10-19',
+      '102': futureDate,
     }));
     await tester.pumpAndSettle();
 
@@ -112,7 +116,7 @@ void main() {
   testWidgets('Menampilkan banner "Tersedia" ketika aset kosong dipilih', (tester) async {
     await tester.pumpWidget(createWidget(formData: {
       '101': 'Ruang Aula',
-      '102': '2026-10-19',
+      '102': futureDate,
     }));
     await tester.pumpAndSettle();
 
@@ -127,7 +131,7 @@ void main() {
     await tester.pumpWidget(createWidget(
       formData: {
         '101': 'Ruang Rapat Utama',
-        '102': '2026-10-19',
+        '102': futureDate,
         '103': '10:00',
         '104': '12:00', // Bentrok dengan 09:00 - 11:00
       },
@@ -150,7 +154,7 @@ void main() {
     await tester.pumpWidget(createWidget(
       formData: {
         '101': 'Ruang Rapat Utama',
-        '102': '2026-10-19',
+        '102': futureDate,
         '103': '11:00', // Selesai jam 11:00, mulai jam 11:00 -> Aman!
         '104': '13:00',
       },
@@ -167,7 +171,7 @@ void main() {
   testWidgets('Menampilkan slot bar dan daftar reservasi terjadwal', (tester) async {
     await tester.pumpWidget(createWidget(formData: {
       '101': 'Ruang Rapat Utama',
-      '102': '2026-10-19',
+      '102': futureDate,
     }));
     await tester.pumpAndSettle();
 

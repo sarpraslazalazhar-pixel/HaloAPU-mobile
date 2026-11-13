@@ -4,6 +4,7 @@ import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/domain/models/monitor_asset_model.dart';
 import 'package:halo_apu_mobile/domain/models/monitor_calendar_model.dart';
 import 'package:halo_apu_mobile/presentation/dashboard/providers/monitor_provider.dart';
+import 'package:halo_apu_mobile/core/utils/booking_schedule_validator.dart';
 
 class ParsedTimeRange {
   final int startMinutes;
@@ -319,6 +320,27 @@ class _AssetBookingScheduleWidgetState extends ConsumerState<AssetBookingSchedul
     required UserBookingTime userTime,
     required List<MonitorCalendarItemModel> existingBookings,
   }) {
+    final rangeError = BookingScheduleValidator.validateScheduleRange(
+      subUnit: widget.subUnit,
+      formFields: widget.formFields,
+      formData: widget.formData,
+    );
+    if (rangeError != null) {
+      return ConflictResult(
+        hasConflict: true,
+        message: rangeError,
+      );
+    }
+
+    final fields = BookingScheduleValidator.resolveFields(widget.subUnit, widget.formFields);
+    final startDate = BookingScheduleValidator.parseDateOnly(
+      fields.startDateFieldId != null ? widget.formData[fields.startDateFieldId]?.toString() : null,
+    );
+    final endDate = BookingScheduleValidator.parseDateOnly(
+      fields.endDateFieldId != null ? widget.formData[fields.endDateFieldId]?.toString() : null,
+    );
+    final isMultiDay = startDate != null && endDate != null && endDate.isAfter(startDate);
+
     if (assetName == null || assetName.isEmpty) {
       return const ConflictResult(hasConflict: false);
     }
@@ -327,11 +349,50 @@ class _AssetBookingScheduleWidgetState extends ConsumerState<AssetBookingSchedul
       return const ConflictResult(hasConflict: false);
     }
 
-    if (userTime.isInvalidRange) {
+    if (!isMultiDay && userTime.isInvalidRange) {
       return const ConflictResult(
         hasConflict: true,
         message: 'Jam selesai harus lebih besar dari jam mulai.',
       );
+    }
+
+    if (isMultiDay) {
+      final userStartDT = DateTime(
+        startDate.year,
+        startDate.month,
+        startDate.day,
+        userTime.startMinutes! ~/ 60,
+        userTime.startMinutes! % 60,
+      );
+      final userEndDT = DateTime(
+        endDate.year,
+        endDate.month,
+        endDate.day,
+        userTime.endMinutes! ~/ 60,
+        userTime.endMinutes! % 60,
+      );
+      final calendarData = ref.read(monitorProvider).calendar.value ?? [];
+      for (final day in calendarData) {
+        for (final b in day.bookings) {
+          final status = b.status.trim().toLowerCase();
+          if (status == 'batal' || status == 'cancelled' || status == 'rejected' || status == 'reject' || status == 'dibatalkan') {
+            continue;
+          }
+          if (!_isMatchingAssetName(b.namaAset, assetName)) continue;
+          final exStart = DateTime.tryParse(b.rawStart ?? '');
+          final exEnd = DateTime.tryParse(b.rawEnd ?? '');
+          if (exStart != null && exEnd != null) {
+            if (userStartDT.isBefore(exEnd) && userEndDT.isAfter(exStart)) {
+              return ConflictResult(
+                hasConflict: true,
+                message: 'Jadwal Bentrok: Aset ini sudah dipesan pada ${b.waktu} oleh ${b.user}.',
+                conflictingBooking: b,
+              );
+            }
+          }
+        }
+      }
+      return const ConflictResult(hasConflict: false);
     }
 
     final userRange = ParsedTimeRange(

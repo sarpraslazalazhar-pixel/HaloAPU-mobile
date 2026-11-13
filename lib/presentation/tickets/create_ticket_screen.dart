@@ -11,6 +11,7 @@ import 'package:halo_apu_mobile/core/services/ticket_service.dart';
 import 'package:halo_apu_mobile/core/services/pending_ticket_service.dart';
 import 'package:halo_apu_mobile/core/providers/connectivity_provider.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
+import 'package:halo_apu_mobile/core/utils/booking_schedule_validator.dart';
 import 'package:halo_apu_mobile/presentation/widgets/shimmer.dart';
 import 'package:halo_apu_mobile/presentation/widgets/offline_banner.dart';
 import 'package:halo_apu_mobile/presentation/widgets/image_doodle_screen.dart';
@@ -153,6 +154,7 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
                 'monitor_kategori': s['monitor_kategori']?.toString(),
                 'monitor_asset_field_id': s['monitor_asset_field_id']?.toString(),
                 'monitor_date_field_id': s['monitor_date_field_id']?.toString(),
+                'monitor_end_date_field_id': s['monitor_end_date_field_id']?.toString(),
                 'monitor_start_field_id': s['monitor_start_field_id']?.toString(),
                 'monitor_end_field_id': s['monitor_end_field_id']?.toString(),
               };
@@ -232,11 +234,6 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
     }
 
     if (_currentStep == 1) {
-      if (_hasScheduleConflict) {
-        _showError(_scheduleConflictMessage ?? 'Jadwal bentrok dengan reservasi yang sudah ada!');
-        return;
-      }
-
       for (var field in _formFields) {
         if (field['required'] == true && _isFieldVisible(field)) {
           final val = _formData[field['id']];
@@ -245,6 +242,24 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
             return;
           }
         }
+      }
+
+      final currentSubUnit = (_selectedUnitIndex != null && _selectedSubUnitIndex != null)
+          ? _units[_selectedUnitIndex!]['sub_units'][_selectedSubUnitIndex!]
+          : null;
+      final rangeError = BookingScheduleValidator.validateScheduleRange(
+        subUnit: currentSubUnit,
+        formFields: _formFields,
+        formData: _formData,
+      );
+      if (rangeError != null) {
+        _showError(rangeError);
+        return;
+      }
+
+      if (_hasScheduleConflict) {
+        _showError(_scheduleConflictMessage ?? 'Jadwal bentrok dengan reservasi yang sudah ada!');
+        return;
       }
     }
 
@@ -282,8 +297,19 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
 
   Future<void> _submitTicket() async {
     if (_isSubmitting) return;
+    final currentSubUnit = (_selectedUnitIndex != null && _selectedSubUnitIndex != null)
+        ? _units[_selectedUnitIndex!]['sub_units'][_selectedSubUnitIndex!]
+        : null;
+    final rangeError = BookingScheduleValidator.validateScheduleRange(
+      subUnit: currentSubUnit,
+      formFields: _formFields,
+      formData: _formData,
+    );
+    if (rangeError != null) {
+      _showError(rangeError);
+      return;
+    }
     setState(() => _isSubmitting = true);
-
     final payload = _buildTicketPayload();
 
     // Offline: simpan ke antrian, kirim otomatis saat online
@@ -966,10 +992,23 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
       case 'tanggal':
         inputWidget = InkWell(
           onTap: () async {
+            final currentSubUnit = (_selectedUnitIndex != null && _selectedSubUnitIndex != null)
+                ? _units[_selectedUnitIndex!]['sub_units'][_selectedSubUnitIndex!]
+                : null;
+            final minDate = BookingScheduleValidator.getMinimumDate(
+              subUnit: currentSubUnit,
+              formFields: _formFields,
+              formData: _formData,
+              fieldId: id,
+            );
+            final firstDate = minDate ?? DateTime(2020);
+            final parsedCurrent = BookingScheduleValidator.parseDateOnly(_formData[id]?.toString());
+            var initialDate = parsedCurrent ?? minDate ?? DateTime.now();
+            if (initialDate.isBefore(firstDate)) initialDate = firstDate;
             final date = await showDatePicker(
               context: context,
-              initialDate: DateTime.now(),
-              firstDate: DateTime(2020),
+              initialDate: initialDate,
+              firstDate: firstDate,
               lastDate: DateTime(2030),
             );
             if (date != null) {
@@ -990,7 +1029,11 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
       case 'waktu':
         inputWidget = InkWell(
           onTap: () async {
-            final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+            final existingMinutes = BookingScheduleValidator.parseMinutesOfDay(_formData[id]?.toString());
+            final initialTime = existingMinutes != null
+                ? TimeOfDay(hour: existingMinutes ~/ 60, minute: existingMinutes % 60)
+                : TimeOfDay.now();
+            final time = await showTimePicker(context: context, initialTime: initialTime);
             if (time != null) {
               setState(() { _formData[id] = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}'; _saveDraft(); });
             }
@@ -1009,9 +1052,26 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
       case 'datetime':
         inputWidget = InkWell(
           onTap: () async {
-            final date = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2030));
+            final currentSubUnit = (_selectedUnitIndex != null && _selectedSubUnitIndex != null)
+                ? _units[_selectedUnitIndex!]['sub_units'][_selectedSubUnitIndex!]
+                : null;
+            final minDate = BookingScheduleValidator.getMinimumDate(
+              subUnit: currentSubUnit,
+              formFields: _formFields,
+              formData: _formData,
+              fieldId: id,
+            );
+            final firstDate = minDate ?? DateTime(2020);
+            final parsedCurrent = BookingScheduleValidator.parseDateOnly(_formData[id]?.toString());
+            var initialDate = parsedCurrent ?? minDate ?? DateTime.now();
+            if (initialDate.isBefore(firstDate)) initialDate = firstDate;
+            final date = await showDatePicker(context: context, initialDate: initialDate, firstDate: firstDate, lastDate: DateTime(2030));
             if (date != null && mounted) {
-              final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+              final existingMinutes = BookingScheduleValidator.parseMinutesOfDay(_formData[id]?.toString());
+              final initialTime = existingMinutes != null
+                  ? TimeOfDay(hour: existingMinutes ~/ 60, minute: existingMinutes % 60)
+                  : TimeOfDay.now();
+              final time = await showTimePicker(context: context, initialTime: initialTime);
               if (time != null) {
                 setState(() { _formData[id] = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}'; _saveDraft(); });
               }

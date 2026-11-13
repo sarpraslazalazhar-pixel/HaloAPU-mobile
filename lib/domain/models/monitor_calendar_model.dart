@@ -25,6 +25,8 @@ class MonitorCalendarItemModel {
   final String status;
   final String user;
   final String waktu;
+  final String? rawStart;
+  final String? rawEnd;
 
   MonitorCalendarItemModel({
     required this.id,
@@ -33,9 +35,13 @@ class MonitorCalendarItemModel {
     required this.status,
     required this.user,
     required this.waktu,
+    this.rawStart,
+    this.rawEnd,
   });
 
   factory MonitorCalendarItemModel.fromJson(Map<String, dynamic> json) {
+    final raw = json['waktu_raw'];
+    final rawMap = raw is Map ? raw : null;
     return MonitorCalendarItemModel(
       id: json['id'] ?? 0,
       namaAset: json['nama_aset'] ?? '',
@@ -43,6 +49,8 @@ class MonitorCalendarItemModel {
       status: json['status'] ?? '',
       user: json['user'] ?? '-',
       waktu: json['waktu'] ?? '',
+      rawStart: rawMap?['start']?.toString(),
+      rawEnd: rawMap?['end']?.toString(),
     );
   }
 }
