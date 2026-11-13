@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:lottie/lottie.dart';
+import 'package:halo_apu_mobile/presentation/widgets/animated_success_check.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:halo_apu_mobile/core/services/ticket_service.dart';
@@ -326,37 +326,10 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
 
         if (mounted) {
           Hive.box('ticket_drafts').clear();
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (ctx) => Dialog(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 150, height: 150,
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-                    child: Center(
-                      child: Lottie.network(
-                        'https://lottie.host/80e7747e-4078-4a9f-a2e6-1215b02130dc/U6EaQ9YFqQ.json',
-                        repeat: false,
-                        errorBuilder: (context, error, stack) => const Icon(Icons.check_circle, color: Colors.green, size: 80),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-          
-          Future.delayed(const Duration(seconds: 2), () {
-            if (mounted) {
-              Navigator.pop(context); // close dialog
-              context.pop(); // close screen
-            }
-          });
+          await showTicketSuccessDialog(context);
+          if (mounted) {
+            context.pop(); // close screen
+          }
         }
       } else {
         final message = result['message']?.toString() ?? 'Gagal membuat tiket';
