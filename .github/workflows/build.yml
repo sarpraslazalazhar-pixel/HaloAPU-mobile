@@ -72,17 +72,19 @@ jobs:
       - name: Extract app version from pubspec.yaml
         run: |
           APP_VERSION=$(grep '^version:' pubspec.yaml | head -n1 | sed -E 's/version:[[:space:]]*([^+]+).*/\1/' | tr -d '\r')
+          BUILD_NUMBER=$((10 + GITHUB_RUN_NUMBER))
           echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
-          echo "Resolved APP_VERSION=$APP_VERSION"
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
+          echo "Resolved APP_VERSION=$APP_VERSION BUILD_NUMBER=$BUILD_NUMBER"
 
       - name: Build APK Staging
-        run: flutter build apk --flavor staging --dart-define=FLAVOR=staging --dart-define=APP_VERSION=$APP_VERSION --release
+        run: flutter build apk --flavor staging --dart-define=FLAVOR=staging --dart-define=APP_VERSION=$APP_VERSION --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release
 
       - name: Build APK Production
-        run: flutter build apk --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --release
+        run: flutter build apk --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release
 
       - name: Build AAB Production
-        run: flutter build appbundle --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --release
+        run: flutter build appbundle --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release
 
       - name: Upload Staging APK artifacts
         uses: actions/upload-artifact@v4
@@ -135,12 +137,14 @@ jobs:
       - name: Extract app version from pubspec.yaml
         run: |
           APP_VERSION=$(grep '^version:' pubspec.yaml | head -n1 | sed -E 's/version:[[:space:]]*([^+]+).*/\1/' | tr -d '\r')
+          BUILD_NUMBER=$((10 + GITHUB_RUN_NUMBER))
           echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
 
       - name: Build iOS Staging (unsigned)
         run: |
           mkdir -p build/ios/SourcePackages build/macos/SourcePackages
-          flutter build ios --flavor staging --dart-define=FLAVOR=staging --dart-define=APP_VERSION=$APP_VERSION --release --no-codesign
+          flutter build ios --flavor staging --dart-define=FLAVOR=staging --dart-define=APP_VERSION=$APP_VERSION --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release --no-codesign
 
       - name: Package unsigned Staging IPA
         run: |
@@ -154,7 +158,7 @@ jobs:
       - name: Build iOS Production (unsigned)
         run: |
           mkdir -p build/ios/SourcePackages build/macos/SourcePackages
-          flutter build ios --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --release --no-codesign
+          flutter build ios --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release --no-codesign
 
       - name: Package unsigned Production IPA
         run: |
