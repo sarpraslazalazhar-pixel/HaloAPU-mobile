@@ -1,8 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 /// Layanan Autentikasi Biometrik (Sidik Jari / Face ID) dengan penyimpanan aman
 class BiometricService {
   static const String _flagKey = 'biometric_enabled';
@@ -22,7 +21,6 @@ class BiometricService {
   }
 
   final LocalAuthentication _auth = LocalAuthentication();
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   Future<bool> isEnabled() async {
     try {
@@ -47,23 +45,22 @@ class BiometricService {
     required String name,
     required String role,
   }) async {
-    await _storage.write(key: _bioEmailKey, value: email);
-    await _storage.write(key: _bioPasswordKey, value: password);
-    await _storage.write(key: _bioNameKey, value: name);
-    await _storage.write(key: _bioRoleKey, value: role);
+    await SafeSecureStorage.write(_bioEmailKey, email);
+    await SafeSecureStorage.write(_bioPasswordKey, password);
+    await SafeSecureStorage.write(_bioNameKey, name);
+    await SafeSecureStorage.write(_bioRoleKey, role);
   }
 
   /// Ambil info profil tersimpan untuk tampilan kartu di layar Login
   Future<Map<String, String>?> getSavedBiometricUser() async {
-    final email = await _storage.read(key: _bioEmailKey);
-    final password = await _storage.read(key: _bioPasswordKey);
+    final email = await SafeSecureStorage.read(_bioEmailKey);
+    final password = await SafeSecureStorage.read(_bioPasswordKey);
     if (email == null || email.isEmpty || password == null || password.isEmpty) {
       return null;
     }
 
-    final name = await _storage.read(key: _bioNameKey) ?? 'Pengguna';
-    final role = await _storage.read(key: _bioRoleKey) ?? 'user';
-
+    final name = await SafeSecureStorage.read(_bioNameKey) ?? 'Pengguna';
+    final role = await SafeSecureStorage.read(_bioRoleKey) ?? 'user';
     return {
       'email': email,
       'name': name,
@@ -73,11 +70,10 @@ class BiometricService {
 
   /// Ambil kredensial lengkap saat verifikasi sidik jari sukses untuk login ke server
   Future<Map<String, String>?> getBiometricCredentials() async {
-    final email = await _storage.read(key: _bioEmailKey);
-    final password = await _storage.read(key: _bioPasswordKey);
-    final role = await _storage.read(key: _bioRoleKey) ?? 'user';
-    final name = await _storage.read(key: _bioNameKey) ?? 'Pengguna';
-
+    final email = await SafeSecureStorage.read(_bioEmailKey);
+    final password = await SafeSecureStorage.read(_bioPasswordKey);
+    final role = await SafeSecureStorage.read(_bioRoleKey) ?? 'user';
+    final name = await SafeSecureStorage.read(_bioNameKey) ?? 'Pengguna';
     if (email != null && email.isNotEmpty && password != null && password.isNotEmpty) {
       return {
         'email': email,
@@ -91,10 +87,10 @@ class BiometricService {
 
   /// Hapus kredensial biometrik yang tersimpan
   Future<void> clearBiometricSession() async {
-    await _storage.delete(key: _bioEmailKey);
-    await _storage.delete(key: _bioPasswordKey);
-    await _storage.delete(key: _bioNameKey);
-    await _storage.delete(key: _bioRoleKey);
+    await SafeSecureStorage.delete(_bioEmailKey);
+    await SafeSecureStorage.delete(_bioPasswordKey);
+    await SafeSecureStorage.delete(_bioNameKey);
+    await SafeSecureStorage.delete(_bioRoleKey);
   }
 
   /// Cek apakah perangkat mendukung dan memiliki sensor biometrik aktif

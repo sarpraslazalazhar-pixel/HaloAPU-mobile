@@ -113,14 +113,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   /// Pengecekan sesi & validasi token dilakukan paralel bersamaan dengan animasi
   Future<void> _startParallelInit() async {
     try {
-      final token = await SafeSecureStorage.read('auth_token');
+      final results = await Future.wait<String?>([
+        SafeSecureStorage.read('auth_token'),
+        SafeSecureStorage.read('user_role'),
+      ]);
+      final token = results[0];
+      final role = results[1];
       final isAuth = token != null && token.isNotEmpty;
 
       if (isAuth) {
         AttachmentService.setCachedToken(token);
-        final role = await SafeSecureStorage.read('user_role');
+        // Tetapkan target dashboard segera agar _safetyTimer tidak membuang user ke /login saat jaringan lambat
+        _targetRoute = role == 'admin' ? '/dashboard/admin' : '/dashboard/user';
+
         final profileRepo = ref.read(profileRepositoryProvider);
-        
         Map<String, dynamic>? profileRes;
         try {
           profileRes = await profileRepo.getProfile().timeout(const Duration(seconds: 2));
@@ -129,35 +135,22 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         }
 
         if (profileRes != null && profileRes['success'] == true) {
-          // Sesi valid 100%!
           if (role == 'admin') {
             ref.read(adminProfileProvider.notifier).refresh();
-            _targetRoute = '/dashboard/admin';
           } else {
             ref.read(userProfileProvider.notifier).refresh();
-            _targetRoute = '/dashboard/user';
           }
-        } else if (profileRes != null && (profileRes['statusCode'] == 401 ||
-            profileRes['message'].toString().toLowerCase().contains('unauthenticated') ||
-            profileRes['message'].toString().toLowerCase().contains('sesi telah berakhir'))) {
-          // Token kadaluarsa -> bersihkan sesi aktif & arahkan ke login
-          await SafeSecureStorage.delete('auth_token');
-          await SafeSecureStorage.delete('user_data');
-          await SafeSecureStorage.delete('user_role');
+        } else if (profileRes != null && profileRes['statusCode'] == 401) {
+          // Token kadaluarsa secara eksplisit -> bersihkan sesi aktif & arahkan ke login
+          await SafeSecureStorage.clearSession();
+          AttachmentService.clearTokenCache();
           _targetRoute = '/login';
-        } else {
-          // Kasus offline/tidak ada internet -> tetap izinkan masuk dashboard dengan cache
-          if (role == 'admin') {
-            _targetRoute = '/dashboard/admin';
-          } else {
-            _targetRoute = '/dashboard/user';
-          }
         }
       } else {
         _targetRoute = '/login';
       }
     } catch (_) {
-      _targetRoute = '/login';
+      _targetRoute ??= '/login';
     } finally {
       _isInitCompleted = true;
       _checkAndNavigate();
@@ -373,7 +366,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'VERSI 1.0 • © 2026 Al Azhar peduli',
+                        'VERSI 1.0.1 • © 2026 Al Azhar peduli',
                         style: TextStyle(
                           fontSize: 11,
                           letterSpacing: 1.5,

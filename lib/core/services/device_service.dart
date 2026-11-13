@@ -1,17 +1,15 @@
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
+import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 class DeviceService {
   static const String _deviceIdKey = 'app_device_hardware_id';
-  static const FlutterSecureStorage _storage = FlutterSecureStorage();
   static final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
 
   /// Mengambil Device ID Hardware unik & permanen (tetap sama meski aplikasi di-uninstall)
   static Future<String> getDeviceId() async {
     try {
       // 1. Cek apakah sudah pernah tersimpan di local storage
-      String? cachedId = await _storage.read(key: _deviceIdKey);
+      String? cachedId = await SafeSecureStorage.read(_deviceIdKey);
       if (cachedId != null && cachedId.isNotEmpty && !cachedId.startsWith('DEV_UNKNOWN')) {
         return cachedId;
       }
@@ -36,7 +34,7 @@ class DeviceService {
         hardwareIdentifier = 'DEV_${defaultTargetPlatform.name.toUpperCase()}';
       }
 
-      await _storage.write(key: _deviceIdKey, value: hardwareIdentifier);
+      await SafeSecureStorage.write(_deviceIdKey, hardwareIdentifier);
       return hardwareIdentifier;
     } catch (_) {
       return 'DEV_LEGACY_DEFAULT';

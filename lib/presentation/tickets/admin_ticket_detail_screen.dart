@@ -8,7 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:halo_apu_mobile/core/services/attachment_service.dart';
 import 'package:halo_apu_mobile/presentation/widgets/auth_attachment_image.dart';
 import 'package:halo_apu_mobile/core/utils/date_formatter.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import '../widgets/image_doodle_screen.dart';
@@ -21,6 +21,7 @@ import 'widgets/ticket_status_timeline.dart';
 import 'widgets/chat_bubble.dart';
 import 'widgets/ticket_sla_card.dart';
 import 'widgets/return_asset_sheet.dart';
+import 'widgets/revision_request_sheet.dart';
 import 'package:halo_apu_mobile/presentation/dashboard/providers/monitor_provider.dart';
 
 class AdminTicketDetailScreen extends ConsumerStatefulWidget {
@@ -46,7 +47,6 @@ class _AdminTicketDetailScreenState
   String _currentAdminName = '';
   Timer? _pollingTimer;
   bool _isSilentRefreshing = false;
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final GlobalKey _chatBottomKey = GlobalKey();
   final FocusNode _chatFocusNode = FocusNode();
   final TextEditingController _messageController = TextEditingController();
@@ -57,6 +57,11 @@ class _AdminTicketDetailScreenState
   Map<String, dynamic>? _csatData;
   bool _isSubmittedByMe = false;
   bool _hasActiveBooking = false;
+  int _maxRevisions = 5;
+  int _revisionCount = 0;
+  bool _isResultAccepted = false;
+  bool _isRevisionEnabled = false;
+  bool _isRevisionActionLoading = false;
   bool _isCancelLoading = false;
   static const List<String> _quickReplies = [
     'Baik, akan segera kami proses. Terima kasih atas informasinya.',
@@ -108,7 +113,7 @@ class _AdminTicketDetailScreenState
   }
 
   Future<void> _loadUserRole() async {
-    String? userDataStr = await _storage.read(key: 'user_data');
+    String? userDataStr = await SafeSecureStorage.read('user_data');
     if (userDataStr == null || userDataStr.isEmpty) {
       final prefs = await SharedPreferences.getInstance();
       userDataStr = prefs.getString('user_data');
@@ -165,6 +170,10 @@ class _AdminTicketDetailScreenState
       }
       _isSubmittedByMe = data['isSubmittedByMe'] == true;
       _hasActiveBooking = data['hasActiveBooking'] == true;
+      _maxRevisions = int.tryParse((data['maxRevisions'] ?? data['max_revisions'] ?? 5).toString()) ?? 5;
+      _revisionCount = int.tryParse((data['revisionCount'] ?? data['revision_count'] ?? 0).toString()) ?? 0;
+      _isResultAccepted = (data['isResultAccepted'] ?? data['is_result_accepted']) == true;
+      _isRevisionEnabled = (data['isRevisionEnabled'] ?? data['is_revision_enabled']) == true;
     }
 
     if (mounted) {
@@ -412,6 +421,93 @@ class _AdminTicketDetailScreenState
     );
   }
 
+  Future<void> _invalidateTicketCaches() async {
+    final cleanId = _ticket.id.replaceAll('-', '');
+    await CacheService.remove(CacheService.ticketDetailKey(_ticket.id));
+    if (cleanId != _ticket.id) {
+      await CacheService.remove(CacheService.ticketDetailKey(cleanId));
+    }
+    await CacheService.removeByPrefix('ticket_list_');
+  }
+
+  Future<void> _requestRevision() async {
+    final res = await RevisionRequestSheet.show(
+      context,
+      revisionCount: _revisionCount,
+      maxRevisions: _maxRevisions,
+    );
+    if (res == null || !mounted) return;
+
+    setState(() => _isRevisionActionLoading = true);
+    final result = await _ticketService.requestRevision(
+      _ticket.id,
+      res.note,
+      attachments: res.attachments.isNotEmpty ? res.attachments : null,
+    );
+    if (!mounted) return;
+    setState(() => _isRevisionActionLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result['message'] ?? (result['success'] ? 'Permintaan revisi terkirim' : 'Gagal')),
+        backgroundColor: result['success'] ? AppTheme.success : AppTheme.danger,
+      ),
+    );
+    if (result['success'] == true) {
+      await _invalidateTicketCaches();
+      ref.read(adminTicketProvider.notifier).refresh();
+      await _loadTicketDetail();
+    }
+  }
+
+  Future<void> _acceptResult() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Terima Hasil Pekerjaan?'),
+        content: const Text(
+          'Pastikan hasil pekerjaan sudah sesuai. Setelah diterima, tiket tidak dapat diajukan revisi kembali.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.success,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Ya, Terima Hasil'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isRevisionActionLoading = true);
+    final result = await _ticketService.acceptResult(_ticket.id);
+    if (!mounted) return;
+    setState(() => _isRevisionActionLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result['message'] ?? (result['success'] ? 'Hasil pekerjaan diterima' : 'Gagal menerima hasil')),
+        backgroundColor: result['success'] == true ? AppTheme.success : AppTheme.danger,
+      ),
+    );
+    if (result['success'] == true) {
+      setState(() => _isResultAccepted = true);
+      await _invalidateTicketCaches();
+      ref.read(adminTicketProvider.notifier).refresh();
+      ref.read(csatProvider.notifier).fetchPendingCsat();
+      ref.read(csatProvider.notifier).fetchCsatHistory();
+      await _loadTicketDetail();
+      if (mounted && _csatData == null) {
+        _showCsatBottomSheet();
+      }
+    }
+  }
 
   Future<void> _handleCancelTicket() async {
     if (_isCancelLoading) return;
@@ -534,7 +630,7 @@ class _AdminTicketDetailScreenState
     TicketStatus.open: [TicketStatus.processing, TicketStatus.rejected, TicketStatus.pending],
     TicketStatus.processing: [TicketStatus.solved, TicketStatus.pending, TicketStatus.rejected],
     TicketStatus.pending: [TicketStatus.processing],
-    TicketStatus.needRevision: [TicketStatus.solved, TicketStatus.pending, TicketStatus.rejected],
+    TicketStatus.needRevision: [TicketStatus.processing, TicketStatus.solved, TicketStatus.pending, TicketStatus.rejected],
   };
 
   String _statusLabel(TicketStatus status) {
@@ -545,7 +641,7 @@ class _AdminTicketDetailScreenState
       case TicketStatus.rejected: return 'Ditolak';
       case TicketStatus.cancelled: return 'Dibatalkan';
       case TicketStatus.pending: return 'Tertunda';
-      case TicketStatus.needRevision: return 'Butuh Revisi';
+      case TicketStatus.needRevision: return 'Perlu Revisi';
     }
   }
 
@@ -1797,6 +1893,14 @@ class _AdminTicketDetailScreenState
               _buildDetailRow(Icons.calendar_today_outlined, 'Waktu Diajukan', formatDateTime(_ticket.createdAt, pattern: 'dd MMMM yyyy, HH:mm')),
               const SizedBox(height: 12),
               _buildDetailRow(Icons.flag_outlined, 'Prioritas', _ticket.priority ?? 'Sedang'),
+              if (_isRevisionEnabled || _revisionCount > 0) ...[
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  Icons.edit_note_rounded,
+                  'Kuota Revisi',
+                  '$_revisionCount dari $_maxRevisions kali digunakan${_isResultAccepted ? ' (Hasil Diterima)' : ''}',
+                ),
+              ],
             ],
           ),
         ),
@@ -2413,7 +2517,55 @@ class _AdminTicketDetailScreenState
 
             // Action Buttons Row (Hidden when keyboard is open)
             if (!isKeyboardOpen) ...[
-              if (_isSubmittedByMe && _ticket.status == TicketStatus.solved && _csatData == null) ...[
+              if (_isSubmittedByMe && _ticket.status == TicketStatus.solved && _isRevisionEnabled && !_isResultAccepted) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    if (_revisionCount < _maxRevisions) ...[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _isRevisionActionLoading ? null : _requestRevision,
+                          icon: const Icon(Icons.edit_note_rounded, size: 17),
+                          label: Text(
+                            'Revisi (${_maxRevisions - _revisionCount})',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            side: const BorderSide(color: AppTheme.brilliantBlue, width: 1.4),
+                            foregroundColor: AppTheme.brilliantBlue,
+                            backgroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isRevisionActionLoading ? null : _acceptResult,
+                        icon: const Icon(Icons.check_circle_outline_rounded, size: 17),
+                        label: const Text(
+                          'Terima Hasil',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          minimumSize: const Size(0, 42),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          backgroundColor: AppTheme.success,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (_isSubmittedByMe &&
+                  _ticket.status == TicketStatus.solved &&
+                  _csatData == null &&
+                  (!_isRevisionEnabled || _isResultAccepted || _revisionCount >= _maxRevisions)) ...[
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,

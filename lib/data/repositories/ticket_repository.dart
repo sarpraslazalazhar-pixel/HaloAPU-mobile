@@ -47,9 +47,10 @@ class TicketRepository {
 
   /// Fetch a single ticket by ID with full details.
   Future<Map<String, dynamic>> getTicketDetail(String id) async {
-    final cacheKey = CacheService.ticketDetailKey(id);
+    final cleanId = id.replaceAll('-', '');
+    final cacheKey = CacheService.ticketDetailKey(cleanId);
     try {
-      final response = await _apiClient.dio.get('/tickets/$id');
+      final response = await _apiClient.dio.get('/tickets/$cleanId');
       if (response.statusCode == 200) {
         final data = response.data['data'];
         await CacheService.put(cacheKey, data, ttlSeconds: 120);
@@ -68,9 +69,10 @@ class TicketRepository {
 
   /// Fetch ticket by ID as TicketModel (simplified).
   Future<TicketModel> getTicketById(String id) async {
-    final cacheKey = CacheService.ticketDetailKey(id);
+    final cleanId = id.replaceAll('-', '');
+    final cacheKey = CacheService.ticketDetailKey(cleanId);
     try {
-      final response = await _apiClient.dio.get('/tickets/$id');
+      final response = await _apiClient.dio.get('/tickets/$cleanId');
       if (response.statusCode == 200) {
         final data = response.data['data'] ?? response.data;
         await CacheService.put(cacheKey, data, ttlSeconds: 120);
@@ -207,13 +209,14 @@ class TicketRepository {
         }
       }
 
+      final cleanId = ticketId.replaceAll('-', '');
       final response = await _apiClient.dio.post(
-        '/tickets/$ticketId/reply',
+        '/tickets/$cleanId/reply',
         data: formData,
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
-        await CacheService.remove(CacheService.ticketDetailKey(ticketId));
+        await CacheService.remove(CacheService.ticketDetailKey(cleanId));
         return response.data['data'];
       } else {
         throw Exception('Gagal mengirim balasan');
@@ -229,7 +232,8 @@ class TicketRepository {
   /// Cancel a ticket.
   Future<void> cancelTicket(String ticketId) async {
     try {
-      final response = await _apiClient.dio.patch('/tickets/$ticketId/cancel');
+      final cleanId = ticketId.replaceAll('-', '');
+      final response = await _apiClient.dio.patch('/tickets/$cleanId/cancel');
       if (response.statusCode != 200) {
         throw Exception(response.data['message'] ?? 'Gagal membatalkan tiket');
       }
@@ -245,7 +249,8 @@ class TicketRepository {
   /// Accept ticket result.
   Future<void> acceptResult(String ticketId) async {
     try {
-      final response = await _apiClient.dio.post('/tickets/$ticketId/accept');
+      final cleanId = ticketId.replaceAll('-', '');
+      final response = await _apiClient.dio.post('/tickets/$cleanId/accept');
       if (response.statusCode != 200) {
         throw Exception(response.data['message'] ?? 'Gagal menerima hasil');
       }
@@ -278,14 +283,16 @@ class TicketRepository {
         }
       }
 
+      final cleanId = ticketId.replaceAll('-', '');
       final response = await _apiClient.dio.post(
-        '/tickets/$ticketId/revision',
+        '/tickets/$cleanId/revision',
         data: formData,
       );
 
       if (response.statusCode != 200) {
         throw Exception(response.data['message'] ?? 'Gagal mengirim permintaan revisi');
       }
+      await CacheService.removeByPrefix('ticket_');
     } on DioException catch (e) {
       if (e.response?.statusCode == 422) {
         throw Exception(e.response!.data['message'] ?? 'Gagal mengirim permintaan revisi');

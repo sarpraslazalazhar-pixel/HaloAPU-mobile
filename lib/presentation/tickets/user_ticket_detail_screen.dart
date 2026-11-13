@@ -19,6 +19,7 @@ import 'widgets/ticket_status_timeline.dart';
 import 'widgets/chat_bubble.dart';
 import 'widgets/ticket_sla_card.dart';
 import 'widgets/return_asset_sheet.dart';
+import 'widgets/revision_request_sheet.dart';
 
 class UserTicketDetailScreen extends ConsumerStatefulWidget {
   final TicketModel ticket;
@@ -160,11 +161,10 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
       _csatData = data['csat'] is Map ? Map<String, dynamic>.from(data['csat'] as Map) : null;
 
       // Revision info
-      _maxRevisions = data['maxRevisions'] ?? 5;
-      _revisionCount = data['revisionCount'] ?? 0;
-      _isResultAccepted = data['isResultAccepted'] ?? false;
-      _isRevisionEnabled = data['isRevisionEnabled'] ?? false;
-
+      _maxRevisions = int.tryParse((data['maxRevisions'] ?? data['max_revisions'] ?? 5).toString()) ?? 5;
+      _revisionCount = int.tryParse((data['revisionCount'] ?? data['revision_count'] ?? 0).toString()) ?? 0;
+      _isResultAccepted = (data['isResultAccepted'] ?? data['is_result_accepted']) == true;
+      _isRevisionEnabled = (data['isRevisionEnabled'] ?? data['is_revision_enabled']) == true;
       // Update the current ticket with latest status
       try {
         final updated = TicketModel.safeFromJson(data);
@@ -295,65 +295,74 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
   }
 
 
-  Future<void> _requestRevision() async {
-    final controller = TextEditingController();
-    final note = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Minta Revisi', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Revisi ke-${_revisionCount + 1} dari $_maxRevisions', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: 'Jelaskan alasan revisi...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.trim().isEmpty) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('Alasan revisi wajib diisi')),
-                );
-                return;
-              }
-              Navigator.pop(ctx, controller.text.trim());
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.brilliantBlue),
-            child: const Text('Kirim Revisi', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+  Future<void> _invalidateTicketCaches() async {
+    final cleanId = _currentTicket.id.replaceAll('-', '');
+    await CacheService.remove(CacheService.ticketDetailKey(_currentTicket.id));
+    if (cleanId != _currentTicket.id) {
+      await CacheService.remove(CacheService.ticketDetailKey(cleanId));
+    }
+    await CacheService.removeByPrefix('ticket_list_');
+  }
 
-    if (note == null || note.isEmpty) return;
+  Future<void> _requestRevision() async {
+    final res = await RevisionRequestSheet.show(
+      context,
+      revisionCount: _revisionCount,
+      maxRevisions: _maxRevisions,
+    );
+    if (res == null || !mounted) return;
 
     setState(() => _isActionLoading = true);
-    final result = await _ticketService.requestRevision(widget.ticket.id, note);
-    if (mounted) {
-      setState(() => _isActionLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? (result['success'] ? 'Permintaan revisi terkirim' : 'Gagal')),
-          backgroundColor: result['success'] ? AppTheme.success : Colors.red,
-        ),
-      );
-      if (result['success']) {
-        _refreshTicketProviders();
-        await _loadTicketDetail();
-      }
+    final result = await _ticketService.requestRevision(
+      _currentTicket.id,
+      res.note,
+      attachments: res.attachments.isNotEmpty ? res.attachments : null,
+    );
+    if (!mounted) return;
+    setState(() => _isActionLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result['message'] ?? (result['success'] ? 'Permintaan revisi terkirim' : 'Gagal')),
+        backgroundColor: result['success'] ? AppTheme.success : Colors.red,
+      ),
+    );
+    if (result['success']) {
+      await _invalidateTicketCaches();
+      _refreshTicketProviders();
+      await _loadTicketDetail();
     }
   }
 
+  Future<void> _acceptResult() async {
+    final confirmed = await _showConfirmDialog(
+      'Terima Hasil Pekerjaan?',
+      'Pastikan hasil pekerjaan sudah sesuai. Setelah diterima, tiket tidak dapat diajukan revisi kembali.',
+      confirmText: 'Ya, Terima Hasil',
+      confirmColor: AppTheme.success,
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isActionLoading = true);
+    final result = await _ticketService.acceptResult(_currentTicket.id);
+    if (!mounted) return;
+    setState(() => _isActionLoading = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result['message'] ?? (result['success'] ? 'Hasil pekerjaan diterima' : 'Gagal menerima hasil')),
+        backgroundColor: result['success'] ? AppTheme.success : Colors.red,
+      ),
+    );
+    if (result['success']) {
+      setState(() => _isResultAccepted = true);
+      await _invalidateTicketCaches();
+      _refreshTicketProviders(refreshCsat: true);
+      await _loadTicketDetail();
+      if (mounted && _csatData == null) {
+        _showCsatBottomSheet();
+      }
+    }
+  }
   void _showCsatBottomSheet() {
     int selectedRating = 5;
     final commentController = TextEditingController();
@@ -828,6 +837,14 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
               _buildDetailRow(Icons.engineering_outlined, 'Ditugaskan Ke', _currentTicket.assignedTo ?? 'Belum ada teknisi'),
               const SizedBox(height: 12),
               _buildDetailRow(Icons.calendar_today_outlined, 'Waktu Diajukan', formatDateTime(_currentTicket.createdAt, pattern: 'dd MMMM yyyy, HH:mm')),
+              if (_isRevisionEnabled || _revisionCount > 0) ...[
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  Icons.edit_note_rounded,
+                  'Kuota Revisi',
+                  '$_revisionCount dari $_maxRevisions kali digunakan${_isResultAccepted ? ' (Hasil Diterima)' : ''}',
+                ),
+              ],
             ],
           ),
         ),
@@ -1380,33 +1397,108 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
                 ),
               ),
 
-            // Action Buttons for Solved tickets
-            // Action Buttons for Solved tickets (Minta Revisi jika diaktifkan)
-            if (isSolved && !_isResultAccepted && _isRevisionEnabled && _revisionCount < _maxRevisions)
+            // Revision quota info & action buttons for Solved tickets
+            if (isSolved && _isRevisionEnabled)
               AnimatedCrossFade(
                 duration: const Duration(milliseconds: 200),
                 crossFadeState: isKeyboardOpen ? CrossFadeState.showFirst : CrossFadeState.showSecond,
                 firstChild: const SizedBox(height: 0, width: double.infinity),
-                secondChild: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: _isActionLoading ? null : _requestRevision,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        side: const BorderSide(color: AppTheme.brilliantBlue, width: 1.5),
-                        foregroundColor: AppTheme.brilliantBlue,
+                secondChild: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _isResultAccepted
+                            ? AppTheme.success.withValues(alpha: 0.08)
+                            : (_revisionCount >= _maxRevisions
+                                ? AppTheme.warning.withValues(alpha: 0.1)
+                                : const Color(0xFFF3E8FF)),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Text('Minta Revisi', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _isResultAccepted
+                                ? Icons.verified_rounded
+                                : (_revisionCount >= _maxRevisions
+                                    ? Icons.info_outline_rounded
+                                    : Icons.edit_note_rounded),
+                            size: 16,
+                            color: _isResultAccepted
+                                ? AppTheme.success
+                                : (_revisionCount >= _maxRevisions
+                                    ? const Color(0xFFD97706)
+                                    : const Color(0xFF7C3AED)),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _isResultAccepted
+                                  ? 'Hasil pekerjaan telah diterima'
+                                  : (_revisionCount >= _maxRevisions
+                                      ? 'Batas revisi tercapai ($_revisionCount/$_maxRevisions). Silakan terima hasil.'
+                                      : 'Sisa kuota revisi: ${_maxRevisions - _revisionCount} dari $_maxRevisions'),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: _isResultAccepted
+                                    ? const Color(0xFF15803D)
+                                    : (_revisionCount >= _maxRevisions
+                                        ? const Color(0xFFB45309)
+                                        : const Color(0xFF6D28D9)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    if (!_isResultAccepted) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          if (_revisionCount < _maxRevisions) ...[
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _isActionLoading ? null : _requestRevision,
+                                icon: const Icon(Icons.edit_note_rounded, size: 18),
+                                label: const Text('Minta Revisi', style: TextStyle(fontWeight: FontWeight.bold)),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 13),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  side: const BorderSide(color: AppTheme.brilliantBlue, width: 1.5),
+                                  foregroundColor: AppTheme.brilliantBlue,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                          ],
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _isActionLoading ? null : _acceptResult,
+                              icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+                              label: const Text('Terima Hasil', style: TextStyle(fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 13),
+                                minimumSize: const Size(0, 46),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                backgroundColor: AppTheme.success,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
               ),
 
-            // Already accepted message or Solved / Closed ticket CSAT Button
-            if (isSolved && _csatData == null)
+            // CSAT Button (tampil jika bukan mode revisi tertunda, atau hasil sudah diterima / kuota revisi habis)
+            if (isSolved && _csatData == null && (!_isRevisionEnabled || _isResultAccepted || _revisionCount >= _maxRevisions))
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: SizedBox(
@@ -1425,7 +1517,6 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
                   ),
                 ),
               ),
-
             // CSAT Result Card (if already rated)
             if (_csatData != null)
               Container(

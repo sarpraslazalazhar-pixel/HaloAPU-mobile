@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../../core/storage/secure_storage_helper.dart';
 import '../../../domain/models/user_profile_model.dart';
 import '../../../data/repositories/profile_repository.dart';
 
 class UserProfileNotifier extends StateNotifier<UserProfile> {
   final ProfileRepository _profileRepo;
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   UserProfileNotifier(this._profileRepo, [UserProfile? initial])
       : super(initial ?? _defaultUserProfile) {
@@ -37,7 +36,7 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
   ];
 
   Future<void> _loadFromCache() async {
-    final dataStr = await _storage.read(key: 'user_data');
+    final dataStr = await SafeSecureStorage.read('user_data');
     if (dataStr != null) {
       final data = jsonDecode(dataStr);
       state = _fromJson(data);

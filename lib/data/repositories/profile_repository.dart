@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import '../api/api_client.dart';
-
+import '../../core/services/attachment_service.dart';
+import '../../core/storage/secure_storage_helper.dart';
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   return ProfileRepository(apiClient);
@@ -13,7 +13,6 @@ final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
 
 class ProfileRepository {
   final ApiClient _apiClient;
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   ProfileRepository(this._apiClient);
 
@@ -22,7 +21,7 @@ class ProfileRepository {
       final response = await _apiClient.dio.get('/user');
       if (response.statusCode == 200) {
         final data = response.data['data'];
-        await _storage.write(key: 'user_data', value: jsonEncode(data));
+        await SafeSecureStorage.write('user_data', jsonEncode(data));
         return {'success': true, 'data': data, 'statusCode': 200};
       }
       return {'success': false, 'message': 'Gagal mengambil profil', 'statusCode': response.statusCode};
@@ -41,7 +40,7 @@ class ProfileRepository {
       final response = await _apiClient.dio.put('/user', data: updateData);
       if (response.statusCode == 200) {
         final data = response.data['data'];
-        await _storage.write(key: 'user_data', value: jsonEncode(data));
+        await SafeSecureStorage.write('user_data', jsonEncode(data));
         return {'success': true, 'data': data};
       }
       return {'success': false, 'message': response.data?['message'] ?? 'Gagal perbarui profil'};
@@ -95,7 +94,7 @@ class ProfileRepository {
 
       if (response.statusCode == 200) {
         final data = response.data['data'];
-        await _storage.write(key: 'user_data', value: jsonEncode(data));
+        await SafeSecureStorage.write('user_data', jsonEncode(data));
         return {'success': true, 'data': data};
       }
       return {'success': false, 'message': response.data?['message'] ?? 'Gagal upload foto profil'};
@@ -111,7 +110,8 @@ class ProfileRepository {
     try {
       final response = await _apiClient.dio.delete('/user');
       if (response.statusCode == 200) {
-        await _storage.deleteAll();
+        await SafeSecureStorage.deleteAll();
+        AttachmentService.clearTokenCache();
         return {
           'success': true,
           'message': response.data?['message'] ?? 'Akun berhasil dihapus permanen'

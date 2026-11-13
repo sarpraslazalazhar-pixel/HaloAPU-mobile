@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../api/api_client.dart';
+import '../../core/services/attachment_service.dart';
 import '../../core/services/device_service.dart';
+import '../../core/storage/secure_storage_helper.dart';
 import '../../domain/models/user_profile_model.dart';
-
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   return AuthRepository(apiClient);
@@ -14,7 +14,6 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 class AuthRepository {
   final ApiClient _apiClient;
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   AuthRepository(this._apiClient);
 
@@ -48,12 +47,12 @@ class AuthRepository {
         final role = data['role'] ?? 'user';
 
         // Save token
-        await _storage.write(key: 'auth_token', value: token);
-        await _storage.write(key: 'user_role', value: role);
+        AttachmentService.setCachedToken(token);
+        await SafeSecureStorage.write('auth_token', token);
+        await SafeSecureStorage.write('user_role', role);
 
         // Save user data as JSON
-        await _storage.write(key: 'user_data', value: jsonEncode(userData));
-
+        await SafeSecureStorage.write('user_data', jsonEncode(userData));
         return UserProfile.fromJson(userData);
       } else {
         throw Exception('Gagal login: ${response.data['message']}');
@@ -83,21 +82,20 @@ class AuthRepository {
     } catch (e) {
       // Ignore errors on logout
     } finally {
-      await _storage.delete(key: 'auth_token');
-      await _storage.delete(key: 'user_role');
-      await _storage.delete(key: 'user_data');
+      await SafeSecureStorage.clearSession();
+      AttachmentService.clearTokenCache();
     }
   }
 
   /// Check if user is currently logged in (has a stored token).
   Future<bool> isLoggedIn() async {
-    final token = await _storage.read(key: 'auth_token');
+    final token = await SafeSecureStorage.read('auth_token');
     return token != null && token.isNotEmpty;
   }
 
   /// Get stored user data from secure storage (cached from last login/fetch).
   Future<UserProfile?> getStoredUser() async {
-    final userData = await _storage.read(key: 'user_data');
+    final userData = await SafeSecureStorage.read('user_data');
     if (userData != null) {
       try {
         return UserProfile.fromJson(jsonDecode(userData));
@@ -115,7 +113,7 @@ class AuthRepository {
       if (response.statusCode == 200) {
         final userData = response.data['data'];
         // Update cached user data
-        await _storage.write(key: 'user_data', value: jsonEncode(userData));
+        await SafeSecureStorage.write('user_data', jsonEncode(userData));
         return UserProfile.fromJson(userData);
       } else {
         throw Exception('Gagal memuat profil');
@@ -123,9 +121,8 @@ class AuthRepository {
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         // Token expired, clear data
-        await _storage.delete(key: 'auth_token');
-        await _storage.delete(key: 'user_data');
-        throw Exception('Sesi telah berakhir, silakan login kembali');
+        await SafeSecureStorage.clearSession();
+        AttachmentService.clearTokenCache();
       }
       throw Exception('Gagal menghubungi server: ${e.message}');
     }
@@ -148,7 +145,7 @@ class AuthRepository {
       final response = await _apiClient.dio.put('/user', data: data);
       if (response.statusCode == 200) {
         final userData = response.data['data'];
-        await _storage.write(key: 'user_data', value: jsonEncode(userData));
+        await SafeSecureStorage.write('user_data', jsonEncode(userData));
         return UserProfile.fromJson(userData);
       } else {
         throw Exception('Gagal memperbarui profil');
@@ -176,7 +173,7 @@ class AuthRepository {
       final response = await _apiClient.dio.post('/user/avatar', data: formData);
       if (response.statusCode == 200) {
         final userData = response.data['data'];
-        await _storage.write(key: 'user_data', value: jsonEncode(userData));
+        await SafeSecureStorage.write('user_data', jsonEncode(userData));
         return UserProfile.fromJson(userData);
       } else {
         throw Exception(response.data?['message'] ?? 'Gagal mengupload foto profil');

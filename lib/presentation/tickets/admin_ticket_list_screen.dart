@@ -23,7 +23,7 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
   final ScrollController _scrollController = ScrollController();
   String _activeTab = 'masuk';
   String _selectedFilter = 'Semua';
-  final List<String> _filters = ['Semua', 'Aktif', 'Terbuka', 'Diproses', 'Tertunda', 'Selesai', 'Ditolak'];
+  final List<String> _filters = ['Semua', 'Aktif', 'Terbuka', 'Diproses', 'Perlu Revisi', 'Tertunda', 'Selesai', 'Ditolak'];
   bool _isLoadingMore = false;
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;

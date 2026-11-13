@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/storage/secure_storage_helper.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/services/biometric_service.dart';
 import '../../core/services/auth_service.dart';
@@ -752,8 +752,7 @@ class _BiometricSectionState extends State<_BiometricSection> {
         return;
       }
 
-      const storage = FlutterSecureStorage();
-      final userDataStr = await storage.read(key: 'user_data') ?? '{}';
+      final userDataStr = await SafeSecureStorage.read('user_data') ?? '{}';
       String name = 'Pengguna';
       String email = '';
       try {
@@ -762,7 +761,7 @@ class _BiometricSectionState extends State<_BiometricSection> {
         email = decoded['email'] ?? decoded['username'] ?? '';
       } catch (_) {}
 
-      var password = await storage.read(key: 'biometric_user_password');
+      var password = await SafeSecureStorage.read('biometric_user_password');
       if (password == null || password.isEmpty) {
         if (mounted) {
           final entered = await _promptPassword(context);

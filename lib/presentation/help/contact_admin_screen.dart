@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
+import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 import 'package:halo_apu_mobile/core/services/auth_service.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -28,8 +28,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
   }
 
   Future<void> _checkLoginStatus() async {
-    const storage = FlutterSecureStorage();
-    final token = await storage.read(key: 'auth_token');
+    final token = await SafeSecureStorage.read('auth_token');
     if (token != null && token.isNotEmpty) {
       if (mounted) {
         setState(() {

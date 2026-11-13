@@ -4,8 +4,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:halo_apu_mobile/core/router/app_router.dart';
+import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 import 'package:halo_apu_mobile/data/api/api_client.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
 
@@ -174,8 +174,7 @@ class PushNotificationService {
     if (_isCheckingNotifs) return;
     _isCheckingNotifs = true;
     try {
-      const storage = FlutterSecureStorage();
-      final token = await storage.read(key: 'auth_token');
+      final token = await SafeSecureStorage.read('auth_token');
       if (token == null || token.isEmpty) return;
       final apiClient = ApiClient();
       // 1. Cek jumlah unread secara ringan terlebih dahulu
@@ -289,8 +288,7 @@ class PushNotificationService {
   /// Mengirimkan FCM Token ke backend Laravel agar device terdaftar
   static Future<void> syncFcmTokenWithBackend({String? token}) async {
     try {
-      const storage = FlutterSecureStorage();
-      final authToken = await storage.read(key: 'auth_token');
+      final authToken = await SafeSecureStorage.read('auth_token');
       if (authToken == null || authToken.isEmpty) {
         debugPrint('Skip FCM sync: User not logged in yet');
         return;
@@ -318,10 +316,8 @@ class PushNotificationService {
   /// Menangani navigasi / Deep Linking saat notifikasi diklik
   static Future<void> _handleNotificationData(Map<String, dynamic> data) async {
     try {
-      const storage = FlutterSecureStorage();
-      final role = await storage.read(key: 'user_role');
-      final authToken = await storage.read(key: 'auth_token');
-
+      final role = await SafeSecureStorage.read('user_role');
+      final authToken = await SafeSecureStorage.read('auth_token');
       if (authToken == null || authToken.isEmpty) {
         debugPrint('Cannot navigate to ticket: User not authenticated');
         return;

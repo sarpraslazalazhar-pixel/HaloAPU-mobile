@@ -854,7 +854,7 @@ class _AdminTicketCard extends StatelessWidget {
       TicketStatus.cancelled =>
         (Icons.cancel, Colors.grey),
       TicketStatus.needRevision =>
-        (Icons.edit_note, AppTheme.warning),
+        (Icons.edit_note_rounded, const Color(0xFF7C3AED)),
       TicketStatus.pending =>
         (Icons.hourglass_empty, Colors.grey),
     };

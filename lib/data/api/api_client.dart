@@ -26,24 +26,31 @@ class ApiClient {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         options.baseUrl = ApiConfig.baseUrl;
-        // Otomatis inject auth token jika tersedia di local storage
-        final token = await SafeSecureStorage.read('auth_token');
-        if (token != null && token.isNotEmpty) {
-          AttachmentService.setCachedToken(token);
-          options.headers['Authorization'] = 'Bearer $token';
+        // Otomatis inject auth token jika belum ada di header dan tersedia di local storage
+        if (options.headers['Authorization'] == null) {
+          final token = await SafeSecureStorage.read('auth_token');
+          if (token != null && token.isNotEmpty) {
+            AttachmentService.setCachedToken(token);
+            options.headers['Authorization'] = 'Bearer $token';
+          }
         }
         return handler.next(options);
       },
-      onError: (DioException e, handler) {
+      onError: (DioException e, handler) async {
         // Penanganan error global ramah pengguna
         String errorMessage = 'Terjadi kesalahan sistem';
 
         if (e.response?.statusCode == 401) {
-          // Token tidak valid/kadaluarsa -> bersihkan sesi aktif otomatis
-          SafeSecureStorage.delete('auth_token');
-          AttachmentService.clearTokenCache();
-          SafeSecureStorage.delete('user_data');
-          SafeSecureStorage.delete('user_role');
+          final authHeader = e.requestOptions.headers['Authorization']?.toString() ?? '';
+          if (authHeader.startsWith('Bearer ')) {
+            final failedToken = authHeader.substring(7).trim();
+            final currentToken = await SafeSecureStorage.read('auth_token');
+            if (currentToken != null && currentToken == failedToken) {
+              // Hanya bersihkan sesi jika request memang mengirim token aktif yang sama
+              await SafeSecureStorage.clearSession();
+              AttachmentService.clearTokenCache();
+            }
+          }
           errorMessage = 'Sesi telah berakhir. Silakan login kembali.';
         } else if (e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout) {

@@ -124,7 +124,8 @@ class TicketService {
 
   Future<Map<String, dynamic>> getTicketDetail(String id) async {
     try {
-      final response = await _dio.get('/tickets/$id');
+      final cleanId = id.replaceAll('-', '');
+      final response = await _dio.get('/tickets/$cleanId');
       return {'success': true, 'data': response.data['data']};
     } on DioException catch (e) {
       return {
@@ -364,13 +365,21 @@ class TicketService {
   /// Accept the result of a solved ticket
   Future<Map<String, dynamic>> acceptResult(String id) async {
     try {
-      final response = await _dio.post('/tickets/$id/accept');
-      return {'success': true, 'message': response.data['message']};
+      final cleanId = id.replaceAll('-', '');
+      final response = await _dio.post('/tickets/$cleanId/accept');
+      final data = response.data;
+      final message = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Hasil pekerjaan diterima';
+      return {'success': true, 'message': message};
     } on DioException catch (e) {
+      final data = e.response?.data;
       return {
         'success': false,
-        'message': e.response?.data['message'] ?? 'Gagal menerima hasil'
+        'message': (data is Map ? data['message'] : null)?.toString() ?? 'Gagal menerima hasil'
       };
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal menerima hasil: $e'};
     }
   }
 
@@ -381,6 +390,8 @@ class TicketService {
     List<XFile>? attachments,
   }) async {
     try {
+      final cleanId = id.replaceAll('-', '');
+      final Response<dynamic> response;
       if (attachments != null && attachments.isNotEmpty) {
         final formData = FormData.fromMap({
           'catatan': note,
@@ -391,28 +402,43 @@ class TicketService {
           formData.files.add(MapEntry('attachments[]', multipartFile));
         }
 
-        final response = await _dio.post('/tickets/$id/revision', data: formData);
-        return {'success': true, 'message': response.data['message']};
+        response = await _dio.post('/tickets/$cleanId/revision', data: formData);
       } else {
-        final response = await _dio.post(
-          '/tickets/$id/revision',
+        response = await _dio.post(
+          '/tickets/$cleanId/revision',
           data: {'catatan': note},
         );
-        return {'success': true, 'message': response.data['message']};
       }
+      final data = response.data;
+      final message = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Permintaan revisi terkirim';
+      return {'success': true, 'message': message};
     } on DioException catch (e) {
-      return {
-        'success': false,
-        'message': e.response?.data['message'] ?? 'Gagal mengajukan revisi'
-      };
+      String message = 'Gagal mengajukan revisi';
+      final data = e.response?.data;
+      if (data is Map) {
+        if (data['message'] != null) {
+          message = data['message'].toString();
+        } else if (data['errors'] is Map && (data['errors'] as Map).isNotEmpty) {
+          final firstError = (data['errors'] as Map).values.first;
+          if (firstError is List && firstError.isNotEmpty) {
+            message = firstError.first.toString();
+          }
+        }
+      }
+      return {'success': false, 'message': message};
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal mengajukan revisi: $e'};
     }
   }
 
   /// Submit CSAT rating for a ticket
   Future<Map<String, dynamic>> rateTicket(String id, int rating, {String? comment}) async {
     try {
+      final cleanId = id.replaceAll('-', '');
       final response = await _dio.post(
-        '/tickets/$id/rate',
+        '/tickets/$cleanId/rate',
         data: {
           'rating': rating,
           if (comment != null && comment.isNotEmpty) 'komentar': comment,

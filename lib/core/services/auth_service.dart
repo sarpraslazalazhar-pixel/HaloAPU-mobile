@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:halo_apu_mobile/core/config/api_config.dart';
+import 'package:halo_apu_mobile/core/services/attachment_service.dart';
 import 'package:halo_apu_mobile/core/services/device_service.dart';
 import 'package:halo_apu_mobile/core/services/biometric_service.dart';
 import 'package:halo_apu_mobile/core/services/cache_service.dart';
-
+import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 class AuthService {
   Dio get _dio => Dio(BaseOptions(
     baseUrl: ApiConfig.baseUrl,
@@ -18,7 +18,6 @@ class AuthService {
     },
   ));
 
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   Future<Map<String, dynamic>> login(String email, String password, bool isAdmin) async {
     try {
@@ -50,11 +49,11 @@ class AuthService {
         final userDataJson = jsonEncode(userData);
         final name = (userData['name'] ?? userData['username'] ?? 'Pengguna') as String;
 
-        // Simpan token & user info di secure storage untuk persistensi sesi
-        await _storage.write(key: 'auth_token', value: token);
-        await _storage.write(key: 'user_data', value: userDataJson);
-        await _storage.write(key: 'user_role', value: role);
-
+        // Simpan token & user info di secure storage terpusat untuk persistensi sesi
+        AttachmentService.setCachedToken(token);
+        await SafeSecureStorage.write('auth_token', token);
+        await SafeSecureStorage.write('user_data', userDataJson);
+        await SafeSecureStorage.write('user_role', role);
         // Jika biometrik diaktifkan, simpan kredensial terenkripsi untuk 1-touch login
         final biometricService = BiometricService();
         if (await biometricService.isEnabled()) {
@@ -97,8 +96,7 @@ class AuthService {
 
   Future<void> logout() async {
     try {
-      final token = await _storage.read(key: 'auth_token');
-
+      final token = await SafeSecureStorage.read('auth_token');
       if (token != null) {
         await _dio.post(
           '/logout',
@@ -113,9 +111,8 @@ class AuthService {
       // Abaikan jika token gagal di-revoke di server saat offline
     } finally {
       // Hanya hapus sesi user, pertahankan device_id dan biometric setting
-      await _storage.delete(key: 'auth_token');
-      await _storage.delete(key: 'user_data');
-      await _storage.delete(key: 'user_role');
+      await SafeSecureStorage.clearSession();
+      AttachmentService.clearTokenCache();
       await CacheService.clear();
     }
   }
@@ -147,7 +144,7 @@ class AuthService {
     String? name,
   }) async {
     try {
-      final token = await _storage.read(key: 'auth_token');
+      final token = await SafeSecureStorage.read('auth_token');
       final response = await _dio.post(
         '/contact-admin',
         data: {
@@ -176,7 +173,7 @@ class AuthService {
 
   Future<Map<String, dynamic>> uploadAvatar(String filePath) async {
     try {
-      final token = await _storage.read(key: 'auth_token');
+      final token = await SafeSecureStorage.read('auth_token');
       final fileName = filePath.split(RegExp(r'[/\\]')).last;
       final formData = FormData.fromMap({
         'avatar': await MultipartFile.fromFile(filePath, filename: fileName),
@@ -195,7 +192,7 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final userData = response.data['data'];
-        await _storage.write(key: 'user_data', value: jsonEncode(userData));
+        await SafeSecureStorage.write('user_data', jsonEncode(userData));
         return {'success': true, 'data': userData};
       }
       return {

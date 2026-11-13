@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../api/api_client.dart';
+import '../../core/storage/secure_storage_helper.dart';
 import '../../domain/models/ticket_model.dart';
-
 final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   return DashboardRepository(apiClient);
@@ -12,7 +11,6 @@ final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) {
 
 class DashboardRepository {
   final ApiClient _apiClient;
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   DashboardRepository(this._apiClient);
 
@@ -102,13 +100,13 @@ class DashboardRepository {
 
   Future<void> _saveCache(dynamic data) async {
     try {
-      await _storage.write(key: 'dashboard_cache', value: jsonEncode(data));
+      await SafeSecureStorage.write('dashboard_cache', jsonEncode(data));
     } catch (_) {}
   }
 
   Future<Map<String, dynamic>> _fallbackFromCache(String reason) async {
     try {
-      final cached = await _storage.read(key: 'dashboard_cache');
+      final cached = await SafeSecureStorage.read('dashboard_cache');
       if (cached != null) {
         final data = jsonDecode(cached);
         final tickets = _parseTickets(data['recentTickets']);

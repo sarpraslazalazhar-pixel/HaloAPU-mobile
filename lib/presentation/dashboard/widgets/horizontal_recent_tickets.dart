@@ -158,9 +158,9 @@ class _HorizontalRecentTicketsState
         );
       case TicketStatus.needRevision:
         return const _StatusConfig(
-          label: 'Revisi',
-          bg: Color(0xFFFFEDD5),
-          fg: Color(0xFF9A3412),
+          label: 'Perlu Revisi',
+          bg: Color(0xFFF3E8FF),
+          fg: Color(0xFF7C3AED),
         );
       case TicketStatus.cancelled:
         return const _StatusConfig(

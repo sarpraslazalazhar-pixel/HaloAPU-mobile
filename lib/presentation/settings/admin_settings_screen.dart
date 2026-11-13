@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/storage/secure_storage_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/config/app_flavor.dart';
 import '../../core/theme/app_theme.dart';
@@ -135,7 +135,7 @@ class AdminSettingsScreen extends ConsumerWidget {
                     icon: Icons.info_outline_rounded,
                     color: AppTheme.brilliantBlue,
                     title: 'Versi Aplikasi',
-                    subtitle: '1.0.0',
+                    subtitle: '1.0.1',
                   ),
                 ],
               ),
@@ -883,8 +883,7 @@ class _AdminBiometricTileState extends State<_AdminBiometricTile> {
         return;
       }
 
-      const storage = FlutterSecureStorage();
-      final userDataStr = await storage.read(key: 'user_data') ?? '{}';
+      final userDataStr = await SafeSecureStorage.read('user_data') ?? '{}';
       String name = 'Admin';
       String email = '';
       try {
@@ -893,7 +892,7 @@ class _AdminBiometricTileState extends State<_AdminBiometricTile> {
         email = decoded['email'] ?? decoded['username'] ?? '';
       } catch (_) {}
 
-      var password = await storage.read(key: 'biometric_user_password');
+      var password = await SafeSecureStorage.read('biometric_user_password');
       if (password == null || password.isEmpty) {
         if (mounted) {
           final entered = await _promptPassword(context);

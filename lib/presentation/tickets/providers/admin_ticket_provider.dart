@@ -41,6 +41,9 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
       case 'Diproses':
         _currentStatuses = ['on_proses'];
         break;
+      case 'Perlu Revisi':
+        _currentStatuses = ['need_revision'];
+        break;
       case 'Tertunda':
         _currentStatuses = ['pending'];
         break;

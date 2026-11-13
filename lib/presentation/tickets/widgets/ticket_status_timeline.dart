@@ -256,12 +256,14 @@ class TicketStatusTimeline extends StatelessWidget {
                   // Step 2: Penugasan & Penanganan
                   _buildTimelineStep(
                     title: status == TicketStatus.needRevision
-                        ? 'Menunggu Revisi'
+                        ? 'Perlu Revisi'
                         : (status == TicketStatus.open
                             ? (ticket.assignedTo != null ? 'Operator Ditugaskan' : 'Menunggu Penugasan')
                             : 'Sedang Diproses'),
                     subtitle: status == TicketStatus.needRevision
-                        ? 'Perlu perbaikan data dari pemohon.'
+                        ? (ticket.assignedTo != null
+                            ? 'Revisi sedang ditangani oleh ${ticket.assignedTo}.'
+                            : 'Menunggu tindak lanjut revisi oleh operator.')
                         : (ticket.assignedTo != null
                             ? 'Ditangani oleh ${ticket.assignedTo}'
                             : (status == TicketStatus.open
@@ -325,8 +327,9 @@ class TicketStatusTimeline extends StatelessWidget {
       case TicketStatus.open:
         return const Color(0xFF0284C7);
       case TicketStatus.processing:
-      case TicketStatus.needRevision:
         return const Color(0xFFD97706);
+      case TicketStatus.needRevision:
+        return const Color(0xFF7C3AED);
       case TicketStatus.solved:
         return const Color(0xFF16A34A);
       case TicketStatus.rejected:
@@ -342,8 +345,9 @@ class TicketStatusTimeline extends StatelessWidget {
       case TicketStatus.open:
         return const Color(0xFFE0F2FE);
       case TicketStatus.processing:
-      case TicketStatus.needRevision:
         return const Color(0xFFFEF3C7);
+      case TicketStatus.needRevision:
+        return const Color(0xFFF3E8FF);
       case TicketStatus.solved:
         return const Color(0xFFDCFCE7);
       case TicketStatus.rejected:
