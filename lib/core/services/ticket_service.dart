@@ -324,12 +324,39 @@ class TicketService {
   /// Cancel a ticket (only if status == 'open')
   Future<Map<String, dynamic>> cancelTicket(String id) async {
     try {
-      final response = await _dio.patch('/tickets/$id/cancel');
-      return {'success': true, 'message': response.data['message']};
+      final cleanId = id.replaceAll('-', '');
+      final response = await _dio.patch('/tickets/$cleanId/cancel');
+      return {
+        'success': true,
+        'message': response.data['message'],
+        'data': response.data['data'],
+      };
     } on DioException catch (e) {
       return {
         'success': false,
         'message': e.response?.data['message'] ?? 'Gagal membatalkan tiket'
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> cancelBooking(String id, {String? catatan}) async {
+    try {
+      final cleanId = id.replaceAll('-', '');
+      final response = await _dio.patch(
+        '/tickets/$cleanId/cancel-booking',
+        data: {
+          if (catatan != null && catatan.isNotEmpty) 'catatan': catatan,
+        },
+      );
+      return {
+        'success': true,
+        'message': response.data['message'] ?? 'Booking berhasil dibatalkan',
+        'data': response.data['data'],
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'message': e.response?.data['message'] ?? 'Gagal membatalkan booking'
       };
     }
   }

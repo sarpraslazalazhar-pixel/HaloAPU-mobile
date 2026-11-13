@@ -56,7 +56,8 @@ class _AdminTicketDetailScreenState
   List<Map<String, dynamic>> _formFields = [];
   Map<String, dynamic>? _csatData;
   bool _isSubmittedByMe = false;
-
+  bool _hasActiveBooking = false;
+  bool _isCancelLoading = false;
   static const List<String> _quickReplies = [
     'Baik, akan segera kami proses. Terima kasih atas informasinya.',
     'Mohon maaf atas kendalanya, sedang dalam penanganan tim terkait.',
@@ -163,6 +164,7 @@ class _AdminTicketDetailScreenState
         _csatData = Map<String, dynamic>.from(data['csat'] as Map);
       }
       _isSubmittedByMe = data['isSubmittedByMe'] == true;
+      _hasActiveBooking = data['hasActiveBooking'] == true;
     }
 
     if (mounted) {
@@ -410,6 +412,112 @@ class _AdminTicketDetailScreenState
     );
   }
 
+
+  Future<void> _handleCancelTicket() async {
+    if (_isCancelLoading) return;
+    final isCreator = _isSubmittedByMe;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(isCreator ? 'Batalkan Tiket?' : 'Tolak / Batalkan Tiket?'),
+        content: Text(
+          isCreator
+              ? 'Apakah Anda yakin ingin membatalkan tiket ini? Tindakan ini tidak dapat dibatalkan.'
+              : 'Karena Anda bukan pembuat tiket ini, membatalkan akan mengubah status tiket menjadi Ditolak. Lanjutkan?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Tutup'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(isCreator ? 'Ya, Batalkan' : 'Ya, Tolak'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isCancelLoading = true);
+    final result = await _ticketService.cancelTicket(_ticket.id);
+    if (!mounted) return;
+    setState(() => _isCancelLoading = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result['message']?.toString() ??
+              (result['success'] == true ? 'Tiket diperbarui' : 'Gagal membatalkan tiket'),
+        ),
+        backgroundColor: result['success'] == true ? AppTheme.success : AppTheme.danger,
+      ),
+    );
+    if (result['success'] == true) {
+      ref.read(adminTicketProvider.notifier).refresh();
+      if (_hasActiveBooking) {
+        ref.read(monitorProvider.notifier).refresh();
+      }
+      await _loadTicketDetail();
+    }
+  }
+
+  Future<void> _handleCancelBooking() async {
+    if (_isCancelLoading) return;
+    final isCreator = _isSubmittedByMe;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(isCreator ? 'Batalkan Booking Aset?' : 'Tolak Booking Aset?'),
+        content: Text(
+          isCreator
+              ? 'Booking aset akan dibatalkan dan aset langsung tersedia kembali di Live Monitor. Yakin?'
+              : 'Karena Anda bukan pembuat tiket, booking aset akan berstatus Ditolak dan aset langsung tersedia kembali di Live Monitor. Lanjutkan?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Tutup'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(isCreator ? 'Ya, Batalkan Booking' : 'Ya, Tolak Booking'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isCancelLoading = true);
+    final result = await _ticketService.cancelBooking(_ticket.id);
+    if (!mounted) return;
+    setState(() => _isCancelLoading = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result['message']?.toString() ??
+              (result['success'] == true ? 'Booking diperbarui' : 'Gagal membatalkan booking'),
+        ),
+        backgroundColor: result['success'] == true ? AppTheme.success : AppTheme.danger,
+      ),
+    );
+    if (result['success'] == true) {
+      ref.read(adminTicketProvider.notifier).refresh();
+      ref.read(monitorProvider.notifier).refresh();
+      await _loadTicketDetail();
+    }
+  }
   String _statusToString(TicketStatus status) {
     switch (status) {
       case TicketStatus.open: return 'open';
@@ -1375,6 +1483,48 @@ class _AdminTicketDetailScreenState
             icon: const Icon(Icons.sync_alt_rounded, color: Color(0xFF00768C), size: 22),
             onPressed: _showStatusSheet,
           ),
+          if ((_ticket.status == TicketStatus.open && (_isSubmittedByMe || _isSuperAdmin)) ||
+              _hasActiveBooking)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF1E293B)),
+              onSelected: (value) {
+                if (value == 'cancel_ticket') {
+                  _handleCancelTicket();
+                } else if (value == 'cancel_booking') {
+                  _handleCancelBooking();
+                }
+              },
+              itemBuilder: (ctx) => [
+                if (_ticket.status == TicketStatus.open && (_isSubmittedByMe || _isSuperAdmin))
+                  PopupMenuItem(
+                    value: 'cancel_ticket',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.cancel_outlined, color: AppTheme.danger, size: 19),
+                        const SizedBox(width: 8),
+                        Text(
+                          _isSubmittedByMe ? 'Batalkan Tiket' : 'Tolak / Batalkan Tiket',
+                          style: const TextStyle(color: AppTheme.danger, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_hasActiveBooking)
+                  PopupMenuItem(
+                    value: 'cancel_booking',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.event_busy_rounded, color: AppTheme.danger, size: 19),
+                        const SizedBox(width: 8),
+                        Text(
+                          _isSubmittedByMe ? 'Batalkan Booking Aset' : 'Tolak Booking Aset',
+                          style: const TextStyle(color: AppTheme.danger, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           const SizedBox(width: 4),
         ],
       ),
