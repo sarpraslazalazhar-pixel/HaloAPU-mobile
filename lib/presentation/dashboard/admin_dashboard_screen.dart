@@ -14,6 +14,8 @@ import 'package:halo_apu_mobile/presentation/widgets/app_avatar.dart';
 import 'package:halo_apu_mobile/presentation/widgets/app_permission_dialog.dart';
 import 'package:halo_apu_mobile/core/services/push_notification_service.dart';
 import 'package:halo_apu_mobile/data/repositories/dashboard_repository.dart';
+import 'package:halo_apu_mobile/presentation/dashboard/providers/csat_provider.dart';
+import 'package:halo_apu_mobile/presentation/dashboard/widgets/pending_rating_section.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -31,6 +33,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   void initState() {
     super.initState();
     _fetchDashboardData();
+    ref.read(csatProvider.notifier).fetchPendingCsat();
     PushNotificationService.startRealtimePoller();
     PushNotificationService.onNotificationReceived = () {
       if (mounted) {
@@ -54,6 +57,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     if (isRefresh) {
       ref.read(adminProfileProvider.notifier).refresh();
       ref.read(notificationProvider.notifier).refresh();
+      ref.read(csatProvider.notifier).fetchPendingCsat();
     }
     final result = await _dashboardRepo.getDashboardData();
     if (mounted) {
@@ -169,6 +173,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     EntranceAnimation(
                       delay: const Duration(milliseconds: 270),
                       child: _buildQuickActions(context),
+                    ),
+                    const EntranceAnimation(
+                      delay: Duration(milliseconds: 315),
+                      child: Padding(
+                        padding: EdgeInsets.only(top: 24),
+                        child: PendingRatingSection(isAdmin: true),
+                      ),
                     ),
                     EntranceAnimation(
                       delay: const Duration(milliseconds: 360),

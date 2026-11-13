@@ -9,6 +9,7 @@ import 'package:halo_apu_mobile/core/services/pending_ticket_service.dart';
 import 'package:halo_apu_mobile/core/config/api_config.dart';
 import 'package:halo_apu_mobile/core/services/cache_service.dart';
 import 'package:halo_apu_mobile/core/config/app_flavor.dart';
+import 'package:halo_apu_mobile/presentation/widgets/app_lock_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -149,15 +150,18 @@ class HaloApuApp extends StatelessWidget {
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
-        if (FlavorConfig.isStaging && child != null) {
+        final gatedChild = AppLockGate(
+          child: child ?? const SizedBox.shrink(),
+        );
+        if (FlavorConfig.isStaging) {
           return Banner(
             message: 'STAGING',
             location: BannerLocation.topEnd,
             color: AppTheme.warning,
-            child: child,
+            child: gatedChild,
           );
         }
-        return child ?? const SizedBox.shrink();
+        return gatedChild;
       },
     );
   }

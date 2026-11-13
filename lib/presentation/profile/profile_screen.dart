@@ -781,7 +781,7 @@ class _BiometricSectionState extends State<_BiometricSection> {
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Login biometrik aktif!')),
+            const SnackBar(content: Text('Kunci & login biometrik aktif!')),
           );
         }
       }
@@ -817,12 +817,12 @@ class _BiometricSectionState extends State<_BiometricSection> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Login Biometrik',
+                    'Kunci & Login Biometrik',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87),
                   ),
                   SizedBox(height: 2),
                   Text(
-                    'Masuk cepat dengan sidik jari / Face ID',
+                    'Kunci aplikasi & masuk cepat dengan sidik jari / Face ID',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],

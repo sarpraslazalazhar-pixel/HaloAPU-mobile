@@ -11,14 +11,27 @@ class BiometricService {
   static const String _bioNameKey = 'biometric_user_name';
   static const String _bioRoleKey = 'biometric_user_role';
 
+  static int _activeAuthCount = 0;
+  static DateTime? _lastAuthFinishedAt;
+
+  static bool get isAuthenticating => _activeAuthCount > 0;
+  static bool get recentlyFinishedAuth {
+    final finishedAt = _lastAuthFinishedAt;
+    if (finishedAt == null) return false;
+    return DateTime.now().difference(finishedAt) < const Duration(milliseconds: 800);
+  }
+
   final LocalAuthentication _auth = LocalAuthentication();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   Future<bool> isEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_flagKey) ?? false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_flagKey) ?? false;
+    } catch (_) {
+      return false;
+    }
   }
-
   Future<void> setEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_flagKey, enabled);
@@ -98,11 +111,14 @@ class BiometricService {
   }
 
   /// Tampilkan dialog sensor sidik jari / Face ID native OS
-  Future<bool> authenticate() async {
+  Future<bool> authenticate({
+    String reason = 'Pindai sidik jari untuk masuk ke Halo APU',
+  }) async {
     if (kIsWeb) return false;
+    _activeAuthCount++;
     try {
       return await _auth.authenticate(
-        localizedReason: 'Pindai sidik jari untuk masuk ke Halo APU',
+        localizedReason: reason,
         biometricOnly: false,
         sensitiveTransaction: true,
         persistAcrossBackgrounding: true,
@@ -110,6 +126,9 @@ class BiometricService {
     } catch (e) {
       debugPrint('Biometric authentication error: $e');
       return false;
+    } finally {
+      _activeAuthCount = (_activeAuthCount - 1).clamp(0, 999);
+      _lastAuthFinishedAt = DateTime.now();
     }
   }
 }

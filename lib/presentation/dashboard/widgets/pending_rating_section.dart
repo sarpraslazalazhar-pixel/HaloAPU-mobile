@@ -5,6 +5,7 @@ import 'package:halo_apu_mobile/core/services/ticket_service.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
 import 'package:halo_apu_mobile/presentation/dashboard/providers/csat_provider.dart';
 import 'package:halo_apu_mobile/presentation/tickets/providers/user_ticket_provider.dart';
+import 'package:halo_apu_mobile/presentation/tickets/providers/admin_ticket_provider.dart';
 
 class _PendingRatingItem {
   final String id;
@@ -23,7 +24,9 @@ class _PendingRatingItem {
 }
 
 class PendingRatingSection extends ConsumerStatefulWidget {
-  const PendingRatingSection({super.key});
+  final bool isAdmin;
+
+  const PendingRatingSection({super.key, this.isAdmin = false});
 
   @override
   ConsumerState<PendingRatingSection> createState() => _PendingRatingSectionState();
@@ -34,7 +37,6 @@ class _PendingRatingSectionState extends ConsumerState<PendingRatingSection> {
 
   List<_PendingRatingItem> _getItems() {
     final csatState = ref.watch(csatProvider);
-    final userTickets = ref.watch(userTicketProvider).valueOrNull ?? [];
 
     final List<_PendingRatingItem> items = [];
 
@@ -52,8 +54,9 @@ class _PendingRatingSectionState extends ConsumerState<PendingRatingSection> {
       }
     }
 
-    // 2. Fallback dari tiket user dengan status solved yang belum dirating
-    if (items.isEmpty) {
+    // 2. Fallback dari tiket user dengan status solved yang belum dirating (khusus user biasa)
+    if (!widget.isAdmin && items.isEmpty) {
+      final userTickets = ref.watch(userTicketProvider).valueOrNull ?? [];
       final solvedWithoutCsat = userTickets.where((t) =>
         t.status == TicketStatus.solved &&
         t.csat == null &&
@@ -96,6 +99,7 @@ class _PendingRatingSectionState extends ConsumerState<PendingRatingSection> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => _RatingModalSheet(
         item: item,
+        isAdmin: widget.isAdmin,
         onRatingSuccess: () {
           setState(() {
             _dismissedIds.add(item.id);
@@ -158,7 +162,7 @@ class _PendingRatingSectionState extends ConsumerState<PendingRatingSection> {
               const Spacer(),
               InkWell(
                 borderRadius: BorderRadius.circular(8),
-                onTap: () => context.push('/ratings/history'),
+                onTap: () => context.push(widget.isAdmin ? '/ratings/admin' : '/ratings/history'),
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   child: Text(
@@ -317,48 +321,61 @@ class _PendingRatingSectionState extends ConsumerState<PendingRatingSection> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(5, (_) => const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 0.5),
-                          child: Icon(
-                            Icons.star_rounded,
-                            size: 12.5,
-                            color: Color(0xFFF59E0B),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        )),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: List.generate(5, (_) => const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 0.5),
+                              child: Icon(
+                                Icons.star_rounded,
+                                size: 12.5,
+                                color: Color(0xFFF59E0B),
+                              ),
+                            )),
+                          ),
+                        ),
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF59E0B),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Beri Nilai',
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF59E0B),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          SizedBox(width: 2),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            size: 12,
-                            color: Colors.white,
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Beri Nilai',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 2),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ],
@@ -374,13 +391,14 @@ class _PendingRatingSectionState extends ConsumerState<PendingRatingSection> {
 
 class _RatingModalSheet extends ConsumerStatefulWidget {
   final _PendingRatingItem item;
+  final bool isAdmin;
   final VoidCallback onRatingSuccess;
 
   const _RatingModalSheet({
     required this.item,
+    this.isAdmin = false,
     required this.onRatingSuccess,
   });
-
   @override
   ConsumerState<_RatingModalSheet> createState() => _RatingModalSheetState();
 }
@@ -409,16 +427,23 @@ class _RatingModalSheetState extends ConsumerState<_RatingModalSheet> {
     setState(() => _isSubmitting = true);
     final comment = _commentController.text.trim();
     try {
-      await _ticketService.rateTicket(
+      final result = await _ticketService.rateTicket(
         widget.item.ticketId,
         _selectedRating,
         comment: comment.isNotEmpty ? comment : null,
       );
+      if (result['success'] != true) {
+        throw Exception(result['message'] ?? 'Gagal mengirim penilaian');
+      }
       ref.read(csatProvider.notifier).fetchPendingCsat();
-      ref.read(userTicketProvider.notifier).refresh();
+      ref.read(csatProvider.notifier).fetchCsatHistory();
+      if (widget.isAdmin) {
+        ref.read(adminTicketProvider.notifier).refresh();
+      } else {
+        ref.read(userTicketProvider.notifier).refresh();
+      }
 
       widget.onRatingSuccess();
-
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(

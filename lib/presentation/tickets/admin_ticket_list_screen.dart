@@ -323,7 +323,11 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
                       return TicketCard(
                         ticket: ticket,
                         onTap: () {
-                          context.push('/tickets/admin/detail', extra: ticket);
+                          if (_activeTab == 'saya_ajukan') {
+                            context.push('/tickets/user/detail', extra: ticket);
+                          } else {
+                            context.push('/tickets/admin/detail', extra: ticket);
+                          }
                         },
                       );
                     },

@@ -912,7 +912,7 @@ class _AdminBiometricTileState extends State<_AdminBiometricTile> {
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Login biometrik Admin aktif!')),
+            const SnackBar(content: Text('Kunci & login biometrik Admin aktif!')),
           );
         }
       }
@@ -943,12 +943,12 @@ class _AdminBiometricTileState extends State<_AdminBiometricTile> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Login Biometrik',
+                  'Kunci & Login Biometrik',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87),
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'Masuk cepat dengan sidik jari / Face ID',
+                  'Kunci aplikasi & masuk cepat dengan sidik jari / Face ID',
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],

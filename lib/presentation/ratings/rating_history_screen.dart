@@ -55,7 +55,7 @@ class _RatingHistoryScreenState extends ConsumerState<RatingHistoryScreen> {
     final ratingsState = ref.watch(
       widget.isAdmin ? adminRatingProvider : ratingProvider,
     );
-    final csatState = widget.isAdmin ? null : ref.watch(csatProvider);
+    final csatState = ref.watch(csatProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.lightBg,
@@ -72,9 +72,7 @@ class _RatingHistoryScreenState extends ConsumerState<RatingHistoryScreen> {
         loading: () => const _RatingShimmerList(),
         error: (error, stack) => RefreshIndicator(
           onRefresh: () async {
-            if (!widget.isAdmin) {
-              ref.read(csatProvider.notifier).fetchPendingCsat();
-            }
+            ref.read(csatProvider.notifier).fetchPendingCsat();
             return ref
                 .read((widget.isAdmin ? adminRatingProvider : ratingProvider).notifier)
                 .refresh();
@@ -104,9 +102,7 @@ class _RatingHistoryScreenState extends ConsumerState<RatingHistoryScreen> {
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
                         onPressed: () {
-                          if (!widget.isAdmin) {
-                            ref.read(csatProvider.notifier).fetchPendingCsat();
-                          }
+                          ref.read(csatProvider.notifier).fetchPendingCsat();
                           ref
                               .read((widget.isAdmin ? adminRatingProvider : ratingProvider).notifier)
                               .refresh();
@@ -122,15 +118,13 @@ class _RatingHistoryScreenState extends ConsumerState<RatingHistoryScreen> {
           ),
         ),
         data: (ratings) {
-          final pendingList = csatState?.pendingCsats.valueOrNull ?? [];
-          final hasPending = !widget.isAdmin && pendingList.isNotEmpty;
+          final pendingList = csatState.pendingCsats.valueOrNull ?? [];
+          final hasPending = pendingList.isNotEmpty;
           final isCompletelyEmpty = ratings.isEmpty && !hasPending;
 
           return RefreshIndicator(
             onRefresh: () async {
-              if (!widget.isAdmin) {
-                ref.read(csatProvider.notifier).fetchPendingCsat();
-              }
+              ref.read(csatProvider.notifier).fetchPendingCsat();
               return ref
                   .read((widget.isAdmin ? adminRatingProvider : ratingProvider).notifier)
                   .refresh();
@@ -153,36 +147,35 @@ class _RatingHistoryScreenState extends ConsumerState<RatingHistoryScreen> {
                             ),
                           ),
                         ),
-                      if (!widget.isAdmin && csatState != null)
-                        csatState.pendingCsats.when(
-                          data: (pending) {
-                            if (pending.isEmpty) return const SliverToBoxAdapter(child: SizedBox());
-                            return SliverToBoxAdapter(
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 24, left: 24, right: 24),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Perlu Dinilai',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: -0.5,
-                                      ),
+                      csatState.pendingCsats.when(
+                        data: (pending) {
+                          if (pending.isEmpty) return const SliverToBoxAdapter(child: SizedBox());
+                          return SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 24, left: 24, right: 24),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.isAdmin ? 'Tiket Anda yang Perlu Dinilai' : 'Perlu Dinilai',
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: -0.5,
                                     ),
-                                    const SizedBox(height: 12),
-                                    ...pending.map((p) => EntranceAnimation(
-                                      child: _buildPendingCard(context, p, ref),
-                                    )),
-                                  ],
-                                ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ...pending.map((p) => EntranceAnimation(
+                                    child: _buildPendingCard(context, p, ref),
+                                  )),
+                                ],
                               ),
-                            );
-                          },
-                          loading: () => const SliverToBoxAdapter(child: SizedBox()),
-                          error: (e, s) => const SliverToBoxAdapter(child: SizedBox()),
-                        ),
+                            ),
+                          );
+                        },
+                        loading: () => const SliverToBoxAdapter(child: SizedBox()),
+                        error: (e, s) => const SliverToBoxAdapter(child: SizedBox()),
+                      ),
                       SliverToBoxAdapter(
                         child: EntranceAnimation(
                           delay: const Duration(milliseconds: 120),
@@ -291,7 +284,7 @@ class _RatingHistoryScreenState extends ConsumerState<RatingHistoryScreen> {
             );
             context.push('/tickets/user/detail', extra: ticketSnapshot).then((_) {
               ref.read(csatProvider.notifier).fetchPendingCsat();
-              ref.read(ratingProvider.notifier).refresh();
+              ref.read((widget.isAdmin ? adminRatingProvider : ratingProvider).notifier).refresh();
             });
           },
           child: Padding(

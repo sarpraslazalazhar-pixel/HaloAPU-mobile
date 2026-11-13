@@ -16,6 +16,7 @@ import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
 import 'package:halo_apu_mobile/core/services/ticket_service.dart';
 import 'package:halo_apu_mobile/core/services/cache_service.dart';
 import 'providers/admin_ticket_provider.dart';
+import 'package:halo_apu_mobile/presentation/dashboard/providers/csat_provider.dart';
 import 'widgets/ticket_status_timeline.dart';
 import 'widgets/chat_bubble.dart';
 import 'widgets/ticket_sla_card.dart';
@@ -54,6 +55,7 @@ class _AdminTicketDetailScreenState
   Map<String, dynamic> _formData = {};
   List<Map<String, dynamic>> _formFields = [];
   Map<String, dynamic>? _csatData;
+  bool _isSubmittedByMe = false;
 
   static const List<String> _quickReplies = [
     'Baik, akan segera kami proses. Terima kasih atas informasinya.',
@@ -160,6 +162,7 @@ class _AdminTicketDetailScreenState
       if (data['csat'] is Map) {
         _csatData = Map<String, dynamic>.from(data['csat'] as Map);
       }
+      _isSubmittedByMe = data['isSubmittedByMe'] == true;
     }
 
     if (mounted) {
@@ -265,6 +268,146 @@ class _AdminTicketDetailScreenState
       }
     }
     if (mounted) setState(() => _isSending = false);
+  }
+
+  void _showCsatBottomSheet() {
+    int selectedRating = 5;
+    final commentController = TextEditingController();
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            top: 16,
+            left: 24,
+            right: 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Penilaian Layanan',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Seberapa puas Anda dengan pelayanan tiket ini?',
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (i) {
+                  return GestureDetector(
+                    onTap: () => setSheetState(() => selectedRating = i + 1),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: AnimatedScale(
+                        scale: i < selectedRating ? 1.1 : 1.0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          i < selectedRating ? Icons.star_rounded : Icons.star_border_rounded,
+                          color: i < selectedRating ? const Color(0xFFF59E0B) : Colors.grey.shade300,
+                          size: 44,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: commentController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Tambahkan komentar opsional (kritik/saran)...',
+                  hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.all(16),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        setSheetState(() => isSubmitting = true);
+                        final result = await _ticketService.rateTicket(
+                          _ticket.id,
+                          selectedRating,
+                          comment: commentController.text.trim(),
+                        );
+                        setSheetState(() => isSubmitting = false);
+                        if (ctx.mounted) Navigator.pop(ctx);
+
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(result['message'] ?? 'Penilaian berhasil dikirim!'),
+                              backgroundColor: result['success'] ? const Color(0xFF10B981) : Colors.red,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          );
+                          if (result['success']) {
+                            ref.read(adminTicketProvider.notifier).refresh();
+                            ref.read(csatProvider.notifier).fetchPendingCsat();
+                            ref.read(csatProvider.notifier).fetchCsatHistory();
+                            await _loadTicketDetail();
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0066FF),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
+                ),
+                child: isSubmitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text('Kirim Penilaian', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   String _statusToString(TicketStatus status) {
@@ -1723,6 +1866,24 @@ class _AdminTicketDetailScreenState
             ),
           ),
         ],
+        if (_isSubmittedByMe && _ticket.status == TicketStatus.solved && _csatData == null) ...[
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _showCsatBottomSheet,
+              icon: const Icon(Icons.star_rounded, size: 20),
+              label: const Text('Beri Penilaian (CSAT)', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                backgroundColor: const Color(0xFFF59E0B),
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 20),
       ],
     );
@@ -2102,6 +2263,27 @@ class _AdminTicketDetailScreenState
 
             // Action Buttons Row (Hidden when keyboard is open)
             if (!isKeyboardOpen) ...[
+              if (_isSubmittedByMe && _ticket.status == TicketStatus.solved && _csatData == null) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _showCsatBottomSheet,
+                    icon: const Icon(Icons.star_rounded, size: 18),
+                    label: const Text(
+                      'Beri Penilaian (CSAT)',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      backgroundColor: const Color(0xFFF59E0B),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               Row(
                 children: [

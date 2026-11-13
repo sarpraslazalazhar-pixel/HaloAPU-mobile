@@ -10,6 +10,9 @@ import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
 import 'package:halo_apu_mobile/core/services/ticket_service.dart';
 import 'package:halo_apu_mobile/core/services/cache_service.dart';
 import 'providers/user_ticket_provider.dart';
+import 'providers/admin_ticket_provider.dart';
+import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
+import 'package:halo_apu_mobile/presentation/dashboard/providers/csat_provider.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import '../widgets/image_doodle_screen.dart';
 import 'widgets/ticket_status_timeline.dart';
@@ -49,6 +52,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
   bool _isResultAccepted = false;
   bool _isRevisionEnabled = false;
   late TicketModel _currentTicket;
+  bool _isAdminUser = false;
 
   @override
   void initState() {
@@ -64,6 +68,26 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
 
     _loadTicketDetail();
     _startPolling();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final role = await SafeSecureStorage.read('user_role');
+    if (mounted) {
+      setState(() => _isAdminUser = role == 'admin');
+    }
+  }
+
+  void _refreshTicketProviders({bool refreshCsat = false}) {
+    if (_isAdminUser) {
+      ref.read(adminTicketProvider.notifier).refresh();
+    } else {
+      ref.read(userTicketProvider.notifier).refresh();
+    }
+    if (refreshCsat) {
+      ref.read(csatProvider.notifier).fetchPendingCsat();
+      ref.read(csatProvider.notifier).fetchCsatHistory();
+    }
   }
 
   void _startPolling() {
@@ -264,7 +288,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
         ),
       );
       if (result['success']) {
-        ref.read(userTicketProvider.notifier).refresh();
+        _refreshTicketProviders();
         await _loadTicketDetail();
       }
     }
@@ -324,7 +348,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
         ),
       );
       if (result['success']) {
-        ref.read(userTicketProvider.notifier).refresh();
+        _refreshTicketProviders();
         await _loadTicketDetail();
       }
     }
@@ -422,7 +446,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
                       ),
                     );
                     if (result['success']) {
-                      ref.read(userTicketProvider.notifier).refresh();
+                      _refreshTicketProviders(refreshCsat: true);
                       await _loadTicketDetail();
                     }
                   }
@@ -1382,7 +1406,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
               ),
 
             // Already accepted message or Solved / Closed ticket CSAT Button
-            if ((isSolved || isClosed) && _csatData == null)
+            if (isSolved && _csatData == null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: SizedBox(
