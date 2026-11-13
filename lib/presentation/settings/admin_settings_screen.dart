@@ -135,7 +135,7 @@ class AdminSettingsScreen extends ConsumerWidget {
                     icon: Icons.info_outline_rounded,
                     color: AppTheme.brilliantBlue,
                     title: 'Versi Aplikasi',
-                    subtitle: '1.0.1',
+                    subtitle: FlavorConfig.appVersion,
                   ),
                 ],
               ),

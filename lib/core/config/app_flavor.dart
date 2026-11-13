@@ -8,6 +8,10 @@ class FlavorConfig {
 
   static const String _customBaseUrl = String.fromEnvironment('BASE_URL');
   static const String _customWebUrl = String.fromEnvironment('WEB_URL');
+  static const String appVersion = String.fromEnvironment(
+    'APP_VERSION',
+    defaultValue: '1.0.1',
+  );
 
   static AppFlavor get current =>
       _envFlavor == 'production' ? AppFlavor.production : AppFlavor.staging;

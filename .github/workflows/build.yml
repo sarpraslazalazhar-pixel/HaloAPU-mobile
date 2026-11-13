@@ -69,14 +69,20 @@ jobs:
             echo "ANDROID_KEYSTORE_BASE64 secret not set; falling back to debug signing."
           fi
 
+      - name: Extract app version from pubspec.yaml
+        run: |
+          APP_VERSION=$(grep '^version:' pubspec.yaml | head -n1 | sed -E 's/version:[[:space:]]*([^+]+).*/\1/' | tr -d '\r')
+          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
+          echo "Resolved APP_VERSION=$APP_VERSION"
+
       - name: Build APK Staging
-        run: flutter build apk --flavor staging --dart-define=FLAVOR=staging --release
+        run: flutter build apk --flavor staging --dart-define=FLAVOR=staging --dart-define=APP_VERSION=$APP_VERSION --release
 
       - name: Build APK Production
-        run: flutter build apk --flavor production --dart-define=FLAVOR=production --release
+        run: flutter build apk --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --release
 
       - name: Build AAB Production
-        run: flutter build appbundle --flavor production --dart-define=FLAVOR=production --release
+        run: flutter build appbundle --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --release
 
       - name: Upload Staging APK artifacts
         uses: actions/upload-artifact@v4
@@ -126,10 +132,15 @@ jobs:
           cd ios
           pod install
 
+      - name: Extract app version from pubspec.yaml
+        run: |
+          APP_VERSION=$(grep '^version:' pubspec.yaml | head -n1 | sed -E 's/version:[[:space:]]*([^+]+).*/\1/' | tr -d '\r')
+          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
+
       - name: Build iOS Staging (unsigned)
         run: |
           mkdir -p build/ios/SourcePackages build/macos/SourcePackages
-          flutter build ios --flavor staging --dart-define=FLAVOR=staging --release --no-codesign
+          flutter build ios --flavor staging --dart-define=FLAVOR=staging --dart-define=APP_VERSION=$APP_VERSION --release --no-codesign
 
       - name: Package unsigned Staging IPA
         run: |
@@ -143,7 +154,7 @@ jobs:
       - name: Build iOS Production (unsigned)
         run: |
           mkdir -p build/ios/SourcePackages build/macos/SourcePackages
-          flutter build ios --flavor production --dart-define=FLAVOR=production --release --no-codesign
+          flutter build ios --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --release --no-codesign
 
       - name: Package unsigned Production IPA
         run: |

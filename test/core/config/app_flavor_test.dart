@@ -21,6 +21,7 @@ void main() {
     test('ApiConfig delegates to FlavorConfig', () {
       expect(ApiConfig.baseUrl, FlavorConfig.baseUrl);
       expect(ApiConfig.defaultBaseUrl, FlavorConfig.baseUrl);
+      expect(FlavorConfig.appVersion, isNotEmpty);
     });
   });
 }

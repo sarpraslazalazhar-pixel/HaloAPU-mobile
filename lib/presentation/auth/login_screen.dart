@@ -12,6 +12,7 @@ import 'package:halo_apu_mobile/data/repositories/dashboard_repository.dart';
 import 'package:halo_apu_mobile/presentation/tickets/providers/admin_ticket_provider.dart';
 import 'package:halo_apu_mobile/presentation/tickets/providers/user_ticket_provider.dart';
 import 'package:halo_apu_mobile/presentation/dashboard/providers/monitor_provider.dart';
+import 'package:halo_apu_mobile/core/config/app_flavor.dart';
 import 'package:halo_apu_mobile/core/services/cache_service.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -557,7 +558,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        'VERSI 1.0.1 • © 2026 Al Azhar peduli',
+                        'VERSI ${FlavorConfig.appVersion} • © 2026 Al Azhar peduli',
                         style: TextStyle(
                           fontSize: 11,
                           letterSpacing: 2,

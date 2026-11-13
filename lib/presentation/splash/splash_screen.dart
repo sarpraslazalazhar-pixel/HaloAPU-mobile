@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:halo_apu_mobile/core/config/app_flavor.dart';
 import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/core/services/attachment_service.dart';
@@ -366,7 +367,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'VERSI 1.0.1 • © 2026 Al Azhar peduli',
+                        'VERSI ${FlavorConfig.appVersion} • © 2026 Al Azhar peduli',
                         style: TextStyle(
                           fontSize: 11,
                           letterSpacing: 1.5,
