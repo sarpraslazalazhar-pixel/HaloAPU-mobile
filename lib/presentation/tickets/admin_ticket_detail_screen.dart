@@ -22,6 +22,9 @@ import 'widgets/chat_bubble.dart';
 import 'widgets/ticket_sla_card.dart';
 import 'widgets/return_asset_sheet.dart';
 import 'widgets/revision_request_sheet.dart';
+import 'widgets/ticket_edit_form_sheet.dart';
+import 'widgets/ticket_edit_history_banner.dart';
+import 'package:halo_apu_mobile/domain/models/ticket_edit_history_model.dart';
 import 'package:halo_apu_mobile/presentation/dashboard/providers/monitor_provider.dart';
 
 class AdminTicketDetailScreen extends ConsumerStatefulWidget {
@@ -57,6 +60,8 @@ class _AdminTicketDetailScreenState
   Map<String, dynamic>? _csatData;
   bool _isSubmittedByMe = false;
   bool _hasActiveBooking = false;
+  bool _canEditForm = false;
+  List<TicketEditHistoryModel> _editHistories = const [];
   int _maxRevisions = 5;
   int _revisionCount = 0;
   bool _isResultAccepted = false;
@@ -170,6 +175,8 @@ class _AdminTicketDetailScreenState
       }
       _isSubmittedByMe = data['isSubmittedByMe'] == true;
       _hasActiveBooking = data['hasActiveBooking'] == true;
+      _canEditForm = data['canEditForm'] == true;
+      _editHistories = TicketEditHistoryModel.listFrom(data['editHistories']);
       _maxRevisions = int.tryParse((data['maxRevisions'] ?? data['max_revisions'] ?? 5).toString()) ?? 5;
       _revisionCount = int.tryParse((data['revisionCount'] ?? data['revision_count'] ?? 0).toString()) ?? 0;
       _isResultAccepted = (data['isResultAccepted'] ?? data['is_result_accepted']) == true;
@@ -740,6 +747,29 @@ class _AdminTicketDetailScreenState
         ),
       ),
     );
+  }
+
+  Future<void> _openEditFormSheet() async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => TicketEditFormSheet(
+        ticketId: _ticket.id,
+        initialFormData: _formData,
+        formFields: _formFields,
+        initialPriority: _ticket.priority,
+      ),
+    );
+
+    if (saved == true && mounted) {
+      await CacheService.remove(CacheService.ticketDetailKey(_ticket.id));
+      await _loadTicketDetail();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Formulir tiket berhasil diperbarui')),
+      );
+    }
   }
 
   Widget _buildStatusOption(
@@ -1568,6 +1598,12 @@ class _AdminTicketDetailScreenState
           ],
         ),
         actions: [
+          if (_canEditForm)
+            IconButton(
+              tooltip: 'Edit Formulir',
+              icon: const Icon(Icons.edit_note_rounded, color: Color(0xFF92400E), size: 22),
+              onPressed: _openEditFormSheet,
+            ),
           if (_canAssignOperator || _isSuperAdmin)
             IconButton(
               tooltip: 'Tugaskan Operator',
@@ -1635,6 +1671,7 @@ class _AdminTicketDetailScreenState
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Column(
                   children: [
+                    TicketEditHistoryBanner(histories: _editHistories),
                     TicketStatusTimeline(
                       ticket: _ticket,
                       isCollapsed: _isTimelineCollapsed,

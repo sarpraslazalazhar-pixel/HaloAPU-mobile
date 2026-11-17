@@ -20,6 +20,8 @@ import 'widgets/chat_bubble.dart';
 import 'widgets/ticket_sla_card.dart';
 import 'widgets/return_asset_sheet.dart';
 import 'widgets/revision_request_sheet.dart';
+import 'widgets/ticket_edit_history_banner.dart';
+import 'package:halo_apu_mobile/domain/models/ticket_edit_history_model.dart';
 
 class UserTicketDetailScreen extends ConsumerStatefulWidget {
   final TicketModel ticket;
@@ -54,6 +56,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
   bool _isRevisionEnabled = false;
   late TicketModel _currentTicket;
   bool _isAdminUser = false;
+  List<TicketEditHistoryModel> _editHistories = const [];
 
   @override
   void initState() {
@@ -159,6 +162,8 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
 
       // CSAT
       _csatData = data['csat'] is Map ? Map<String, dynamic>.from(data['csat'] as Map) : null;
+
+      _editHistories = TicketEditHistoryModel.listFrom(data['editHistories']);
 
       // Revision info
       _maxRevisions = int.tryParse((data['maxRevisions'] ?? data['max_revisions'] ?? 5).toString()) ?? 5;
@@ -712,6 +717,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       child: Column(
                         children: [
+                          TicketEditHistoryBanner(histories: _editHistories),
                           TicketStatusTimeline(ticket: _currentTicket),
                           const SizedBox(height: 10),
                           TicketSlaCard(ticket: _currentTicket),

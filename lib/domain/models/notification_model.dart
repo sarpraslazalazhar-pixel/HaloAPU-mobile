@@ -11,6 +11,7 @@ enum NotificationType {
   @JsonValue('rejected') rejected,
   @JsonValue('csat') csat,
   @JsonValue('sla') sla,
+  @JsonValue('edited') edited,
 }
 
 @freezed

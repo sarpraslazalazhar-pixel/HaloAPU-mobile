@@ -523,6 +523,7 @@ List<({String label, List<NotificationModel> items})> _groupByDate(
     NotificationType.csat => (Icons.star_outline_rounded, AppTheme.warning),
     NotificationType.sla => (Icons.timer_outlined, AppTheme.warning),
     NotificationType.revision => (Icons.refresh_rounded, AppTheme.brilliantBlue),
+    NotificationType.edited => (Icons.published_with_changes_rounded, AppTheme.warning),
     NotificationType.ticket => (Icons.confirmation_number_outlined, AppTheme.brilliantBlue),
   };
 }

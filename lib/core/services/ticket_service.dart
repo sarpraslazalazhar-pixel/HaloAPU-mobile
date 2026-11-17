@@ -466,6 +466,43 @@ class TicketService {
     }
   }
 
+  /// Edit formulir tiket oleh admin (form_data + prioritas + alasan).
+  Future<Map<String, dynamic>> updateTicketForm(
+    String id, {
+    required Map<String, dynamic> formData,
+    String? priority,
+    required String reason,
+  }) async {
+    try {
+      final cleanId = id.replaceAll('-', '');
+      final response = await _dio.patch('/tickets/$cleanId/form', data: {
+        'form_data': formData,
+        if (priority != null && priority.isNotEmpty) 'priority': priority,
+        'edit_reason': reason,
+      });
+      return {
+        'success': true,
+        'message': response.data['message'] ?? 'Formulir tiket berhasil diperbarui',
+        'data': response.data['data'],
+        'editHistories': response.data['editHistories'],
+      };
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      String message = 'Gagal menyimpan perubahan formulir';
+      if (data is Map) {
+        if (data['message'] != null) {
+          message = data['message'].toString();
+        } else if (data['errors'] is Map && (data['errors'] as Map).isNotEmpty) {
+          final firstError = (data['errors'] as Map).values.first;
+          if (firstError is List && firstError.isNotEmpty) {
+            message = firstError.first.toString();
+          }
+        }
+      }
+      return {'success': false, 'message': message};
+    }
+  }
+
   Future<Map<String, dynamic>> updatePriority(String id, String priority) async {
     try {
       final cleanId = id.replaceAll('-', '');

@@ -36,4 +36,5 @@ const _$NotificationTypeEnumMap = {
   NotificationType.rejected: 'rejected',
   NotificationType.csat: 'csat',
   NotificationType.sla: 'sla',
+  NotificationType.edited: 'edited',
 };
