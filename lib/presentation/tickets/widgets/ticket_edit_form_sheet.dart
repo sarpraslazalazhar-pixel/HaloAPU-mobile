@@ -154,25 +154,43 @@ class _TicketEditFormSheetState extends State<TicketEditFormSheet> {
                 controller: controller,
                 padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + bottomInset),
                 children: [
-                  ..._editableFields.map(_buildField),
+                  if (_editableFields.isNotEmpty)
+                    _SectionCard(
+                      icon: Icons.assignment_outlined,
+                      title: 'Data Formulir',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: _editableFields.map(_buildField).toList(),
+                      ),
+                    ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _priority,
-                    decoration: _decoration('Prioritas'),
-                    items: kTicketPriorities
-                        .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                        .toList(),
-                    onChanged: (val) => setState(() => _priority = val),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: _reasonController,
-                    maxLines: 3,
-                    maxLength: 500,
-                    decoration: _decoration('Alasan Perubahan *').copyWith(
-                      hintText: 'Contoh: Melengkapi lokasi karena informasi awal kurang spesifik.',
+                  _SectionCard(
+                    icon: Icons.flag_outlined,
+                    title: 'Prioritas & Alasan',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        DropdownButtonFormField<String>(
+                          initialValue: _priority,
+                          decoration: _decoration('Prioritas'),
+                          items: kTicketPriorities
+                              .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                              .toList(),
+                          onChanged: (val) => setState(() => _priority = val),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _reasonController,
+                          maxLines: 3,
+                          maxLength: 500,
+                          decoration: _decoration('Alasan Perubahan *').copyWith(
+                            hintText: 'Contoh: Melengkapi lokasi karena informasi awal kurang spesifik.',
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(height: 14),
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
@@ -180,6 +198,7 @@ class _TicketEditFormSheetState extends State<TicketEditFormSheet> {
                     ),
                   SizedBox(
                     width: double.infinity,
+                    height: 46,
                     child: FilledButton(
                       onPressed: _saving ? null : _save,
                       style: FilledButton.styleFrom(backgroundColor: AppTheme.oceanWater),
@@ -338,7 +357,7 @@ class _TicketEditFormSheetState extends State<TicketEditFormSheet> {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: type == 'checkbox' || type == 'multi_pilih'
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,6 +368,59 @@ class _TicketEditFormSheetState extends State<TicketEditFormSheet> {
               ],
             )
           : input,
+    );
+  }
+}
+
+/// Kartu bersekat untuk mengelompokkan isian di dalam sheet.
+class _SectionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Widget child;
+
+  const _SectionCard({required this.icon, required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 15, color: AppTheme.oceanWater),
+              const SizedBox(width: 6),
+              Text(
+                title.toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                  color: Color(0xFF475569),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
     );
   }
 }
