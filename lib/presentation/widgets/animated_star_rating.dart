@@ -30,9 +30,12 @@ class _AnimatedStarRatingState extends State<AnimatedStarRating>
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (index) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(5, (index) {
         final starAnim = CurvedAnimation(
           parent: _controller,
           curve: Interval(
@@ -62,8 +65,9 @@ class _AnimatedStarRatingState extends State<AnimatedStarRating>
                   : Colors.grey.shade300,
             ),
           ),
-        );
-      }),
+          );
+        }),
+      ),
     );
   }
 }

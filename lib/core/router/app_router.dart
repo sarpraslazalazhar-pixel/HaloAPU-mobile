@@ -22,6 +22,7 @@ import 'package:halo_apu_mobile/presentation/settings/admin_settings_screen.dart
 import 'package:halo_apu_mobile/presentation/profile/providers/user_profile_provider.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
 import 'package:halo_apu_mobile/presentation/dashboard/monitor_screen.dart';
+import 'package:halo_apu_mobile/presentation/widgets/app_error_view.dart';
 
 Page<void> _fadeSlidePage(GoRouterState state, Widget child) {
   return CustomTransitionPage<void>(
@@ -49,7 +50,7 @@ Page<void> _fadeSlidePage(GoRouterState state, Widget child) {
   );
 }
 
-final appRouter = GoRouter(
+final GoRouter appRouter = GoRouter(
   initialLocation: '/splash',
   redirect: (context, state) async {
     // 1. Fast-path: Biarkan /splash langsung lewat tanpa menunggu secure storage!
@@ -207,4 +208,9 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => _fadeSlidePage(state, const MonitorScreen()),
     ),
   ],
+  errorBuilder: (context, state) => AppErrorView(
+    error: state.error?.toString(),
+    onRetry: () => appRouter.go('/splash'),
+    onLogin: () => appRouter.go('/login'),
+  ),
 );

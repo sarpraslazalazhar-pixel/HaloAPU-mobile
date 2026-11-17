@@ -33,25 +33,33 @@ class UserBottomNav extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(Icons.home_filled, 'Beranda', currentIndex == 0, onTap: () {
-                if (currentIndex != 0) context.push('/dashboard/user');
-              }),
-              _buildNavItem(Icons.confirmation_number_outlined, 'Tiket', currentIndex == 1, onTap: () {
-                if (currentIndex != 1) context.push('/tickets/user');
-              }),
-              const SizedBox(width: 48), // Space for FAB
-              _buildNavItem(
-                Icons.star_outline_rounded,
-                'Rating',
-                currentIndex == 2,
-                activeIcon: Icons.star_rounded,
-                onTap: () {
-                  if (currentIndex != 2) context.push('/ratings/history');
-                },
+              Expanded(
+                child: _buildNavItem(Icons.home_filled, 'Beranda', currentIndex == 0, onTap: () {
+                  if (currentIndex != 0) context.push('/dashboard/user');
+                }),
               ),
-              _buildNavItem(Icons.person_outline, 'Profil', currentIndex == 3, onTap: () {
-                if (currentIndex != 3) context.push('/profile');
-              }),
+              Expanded(
+                child: _buildNavItem(Icons.confirmation_number_outlined, 'Tiket', currentIndex == 1, onTap: () {
+                  if (currentIndex != 1) context.push('/tickets/user');
+                }),
+              ),
+              const SizedBox(width: 48), // Space for FAB
+              Expanded(
+                child: _buildNavItem(
+                  Icons.star_outline_rounded,
+                  'Rating',
+                  currentIndex == 2,
+                  activeIcon: Icons.star_rounded,
+                  onTap: () {
+                    if (currentIndex != 2) context.push('/ratings/history');
+                  },
+                ),
+              ),
+              Expanded(
+                child: _buildNavItem(Icons.person_outline, 'Profil', currentIndex == 3, onTap: () {
+                  if (currentIndex != 3) context.push('/profile');
+                }),
+              ),
             ],
           ),
         ),
@@ -117,6 +125,9 @@ class UserBottomNav extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 10,
                     color: isActive ? const Color(0xFF00768C) : Colors.grey.shade500,
@@ -164,24 +175,32 @@ class AdminBottomNav extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(Icons.dashboard, 'Dasbor', currentIndex == 0, onTap: () {
-                if (currentIndex != 0) context.push('/dashboard/admin');
-              }),
-              _buildNavItem(Icons.view_list, 'Antrean', currentIndex == 1, onTap: () {
-                if (currentIndex != 1) context.push('/tickets/admin');
-              }),
-              const SizedBox(width: 48), // Space for FAB
-              _buildNavItem(
-                Icons.star_outline_rounded,
-                'Rating',
-                currentIndex == 2,
-                onTap: () {
-                  if (currentIndex != 2) context.push('/ratings/admin');
-                },
+              Expanded(
+                child: _buildNavItem(Icons.dashboard, 'Dasbor', currentIndex == 0, onTap: () {
+                  if (currentIndex != 0) context.push('/dashboard/admin');
+                }),
               ),
-              _buildNavItem(Icons.settings_outlined, 'Pengaturan', currentIndex == 3, onTap: () {
-                if (currentIndex != 3) context.push('/settings/admin');
-              }),
+              Expanded(
+                child: _buildNavItem(Icons.view_list, 'Antrean', currentIndex == 1, onTap: () {
+                  if (currentIndex != 1) context.push('/tickets/admin');
+                }),
+              ),
+              const SizedBox(width: 48), // Space for FAB
+              Expanded(
+                child: _buildNavItem(
+                  Icons.star_outline_rounded,
+                  'Rating',
+                  currentIndex == 2,
+                  onTap: () {
+                    if (currentIndex != 2) context.push('/ratings/admin');
+                  },
+                ),
+              ),
+              Expanded(
+                child: _buildNavItem(Icons.settings_outlined, 'Pengaturan', currentIndex == 3, onTap: () {
+                  if (currentIndex != 3) context.push('/settings/admin');
+                }),
+              ),
             ],
           ),
         ),
@@ -234,6 +253,9 @@ class AdminBottomNav extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 10,
                     color: isActive ? const Color(0xFF00768C) : Colors.grey.shade500,

@@ -112,8 +112,10 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
         final data = Map<String, dynamic>.from(result['data'] as Map);
         final cacheKey = CacheService.ticketDetailKey(widget.ticket.id);
         await CacheService.put(cacheKey, data, ttlSeconds: 600);
-        _applyDetailData(data);
+        if (mounted) _applyDetailData(data);
       }
+    } catch (e) {
+      debugPrint('Silent refresh detail gagal: $e');
     } finally {
       _isSilentRefreshing = false;
     }
@@ -193,32 +195,44 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
 
   Future<void> _loadTicketDetail() async {
     final cacheKey = CacheService.ticketDetailKey(widget.ticket.id);
-    final cached = CacheService.get(cacheKey) ?? CacheService.getStale(cacheKey);
-    if (cached != null && cached is Map) {
-      _applyDetailData(Map<String, dynamic>.from(cached));
+    try {
+      final cached = CacheService.get(cacheKey) ?? CacheService.getStale(cacheKey);
+      if (cached is Map) {
+        _applyDetailData(Map<String, dynamic>.from(cached));
+        if (mounted) {
+          setState(() => _isLoadingDetail = false);
+        } else {
+          _isLoadingDetail = false;
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isLoadingDetail = true);
+        }
+      }
+
+      final result = await _ticketService.getTicketDetail(widget.ticket.id);
+      if (!mounted) return;
+
+      final data = result['data'];
+      if (result['success'] == true && data is Map) {
+        final detail = Map<String, dynamic>.from(data);
+        await CacheService.put(cacheKey, detail, ttlSeconds: 600);
+        if (!mounted) return;
+        _applyDetailData(detail);
+      }
+    } catch (e) {
+      debugPrint('Gagal memuat detail tiket ${widget.ticket.id}: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal memuat detail tiket. Coba muat ulang.')),
+        );
+      }
+    } finally {
+      // Spinner tidak boleh menggantung saat request gagal/exception.
       if (mounted) {
         setState(() => _isLoadingDetail = false);
       } else {
         _isLoadingDetail = false;
-      }
-    } else {
-      if (mounted) {
-        setState(() => _isLoadingDetail = true);
-      }
-    }
-
-    final result = await _ticketService.getTicketDetail(widget.ticket.id);
-
-    if (mounted && result['success'] == true && result['data'] is Map) {
-      final data = Map<String, dynamic>.from(result['data'] as Map);
-      await CacheService.put(cacheKey, data, ttlSeconds: 600);
-      _applyDetailData(data);
-      if (mounted) {
-        setState(() => _isLoadingDetail = false);
-      }
-    } else {
-      if (mounted) {
-        setState(() => _isLoadingDetail = false);
       }
     }
   }

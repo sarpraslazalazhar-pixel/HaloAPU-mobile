@@ -7,17 +7,18 @@ import 'package:mime/mime.dart';
 import '../config/api_config.dart';
 
 class TicketService {
-  final Dio _dio = Dio(BaseOptions(
-    baseUrl: ApiConfig.baseUrl,
-    connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(seconds: 15),
-    headers: {
-      'Accept': 'application/json',
-    },
-  ));
+  final Dio _dio;
 
-
-  TicketService() {
+  TicketService({Dio? dio})
+      : _dio = dio ??
+            Dio(BaseOptions(
+              baseUrl: ApiConfig.baseUrl,
+              connectTimeout: const Duration(seconds: 15),
+              receiveTimeout: const Duration(seconds: 15),
+              headers: {
+                'Accept': 'application/json',
+              },
+            )) {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         final token = await SafeSecureStorage.read('auth_token');
@@ -27,6 +28,37 @@ class TicketService {
         return handler.next(options);
       },
     ));
+  }
+
+  /// Ambil pesan error dari body response apa pun bentuknya (Map/List/String/HTML).
+  static String _errorMessage(Object? data, String fallback) {
+    if (data is Map) {
+      final msg = data['message'];
+      if (msg != null && msg.toString().trim().isNotEmpty) return msg.toString();
+      final errors = data['errors'];
+      if (errors is Map && errors.isNotEmpty) {
+        final first = errors.values.first;
+        if (first is List && first.isNotEmpty) return first.first.toString();
+        if (first != null && first.toString().trim().isNotEmpty) return first.toString();
+      }
+      return fallback;
+    }
+    if (data is String && data.trim().isNotEmpty) {
+      final text = data.trim();
+      // Body HTML/panjang (mis. halaman 500/419) tidak layak ditampilkan mentah.
+      if (text.length > 120 || text.startsWith('<')) return fallback;
+      return text;
+    }
+    return fallback;
+  }
+
+  /// Body response sebagai Map; body non-Map (HTML/teks) jadi Map kosong agar
+  /// akses `['data']` tidak melempar `TypeError`.
+  static Map<String, dynamic> _body(Response<dynamic> response) {
+    final dynamic data = response.data;
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return <String, dynamic>{};
   }
 
   Future<MultipartFile> _createMultipartFile(XFile file) async {
@@ -64,11 +96,11 @@ class TicketService {
   Future<Map<String, dynamic>> getServices() async {
     try {
       final response = await _dio.get('/services');
-      return {'success': true, 'data': response.data['data']};
+      return {'success': true, 'data': _body(response)['data']};
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': e.response?.data['message'] ?? 'Gagal memuat layanan'
+        'message': _errorMessage(e.response?.data, 'Gagal memuat layanan')
       };
     }
   }
@@ -77,11 +109,11 @@ class TicketService {
   Future<Map<String, dynamic>> getFormFields(int subUnitId) async {
     try {
       final response = await _dio.get('/services/$subUnitId/fields');
-      return {'success': true, 'data': response.data['data']};
+      return {'success': true, 'data': _body(response)['data']};
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': e.response?.data['message'] ?? 'Gagal memuat form'
+        'message': _errorMessage(e.response?.data, 'Gagal memuat form')
       };
     }
   }
@@ -111,13 +143,13 @@ class TicketService {
       final response = await _dio.get('/tickets', queryParameters: queryParameters);
       return {
         'success': true,
-        'data': response.data['data'],
-        'meta': response.data['meta']
+        'data': _body(response)['data'],
+        'meta': _body(response)['meta']
       };
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': e.response?.data['message'] ?? 'Gagal mengambil tiket'
+        'message': _errorMessage(e.response?.data, 'Gagal mengambil tiket')
       };
     }
   }
@@ -126,11 +158,19 @@ class TicketService {
     try {
       final cleanId = id.replaceAll('-', '');
       final response = await _dio.get('/tickets/$cleanId');
-      return {'success': true, 'data': response.data['data']};
+      final body = _body(response);
+      final data = body['data'];
+      if (data is! Map) {
+        return {
+          'success': false,
+          'message': _errorMessage(body, 'Respons detail tiket tidak valid'),
+        };
+      }
+      return {'success': true, 'data': data};
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': e.response?.data['message'] ?? 'Gagal memuat tiket'
+        'message': _errorMessage(e.response?.data, 'Gagal memuat tiket')
       };
     }
   }
@@ -166,15 +206,15 @@ class TicketService {
         final response = await _dio.post('/tickets', data: formDataObj);
         return {
           'success': true,
-          'data': response.data['data'],
-          'message': response.data['message']
+          'data': _body(response)['data'],
+          'message': _body(response)['message']
         };
       } else {
         final response = await _dio.post('/tickets', data: dataMap);
         return {
           'success': true,
-          'data': response.data['data'],
-          'message': response.data['message']
+          'data': _body(response)['data'],
+          'message': _body(response)['message']
         };
       }
     } on DioException catch (e) {
@@ -222,8 +262,8 @@ class TicketService {
             if (catatan != null && catatan.isNotEmpty) 'catatan': catatan,
           },
         );
-        final data = response.data;
-        final message = (data is Map && data['message'] != null)
+        final data = _body(response);
+        final message = (data['message'] != null)
             ? data['message'].toString()
             : 'Status berhasil diperbarui';
         return {'success': true, 'message': message};
@@ -239,8 +279,8 @@ class TicketService {
         }
 
         final response = await _dio.post('/tickets/$cleanId/status', data: formData);
-        final data = response.data;
-        final message = (data is Map && data['message'] != null)
+        final data = _body(response);
+        final message = (data['message'] != null)
             ? data['message'].toString()
             : 'Status berhasil diperbarui';
         return {'success': true, 'message': message};
@@ -274,11 +314,11 @@ class TicketService {
         '/tickets/$cleanId/assign',
         data: {'admin_id': adminId},
       );
-      return {'success': true, 'data': response.data['data'], 'message': response.data['message']};
+      return {'success': true, 'data': _body(response)['data'], 'message': _body(response)['message']};
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': e.response?.data['message'] ?? 'Gagal menugaskan operator'
+        'message': _errorMessage(e.response?.data, 'Gagal menugaskan operator')
       };
     }
   }
@@ -301,18 +341,18 @@ class TicketService {
         }
 
         final response = await _dio.post('/tickets/$cleanId/reply', data: formData);
-        return {'success': true, 'data': response.data['data']};
+        return {'success': true, 'data': _body(response)['data']};
       } else {
         final response = await _dio.post(
           '/tickets/$cleanId/reply',
           data: {'catatan': note},
         );
-        return {'success': true, 'data': response.data['data']};
+        return {'success': true, 'data': _body(response)['data']};
       }
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': e.response?.data['message'] ?? e.error?.toString() ?? 'Gagal membalas tiket'
+        'message': _errorMessage(e.response?.data, e.error?.toString() ?? 'Gagal membalas tiket')
       };
     } catch (e) {
       return {
@@ -329,13 +369,13 @@ class TicketService {
       final response = await _dio.patch('/tickets/$cleanId/cancel');
       return {
         'success': true,
-        'message': response.data['message'],
-        'data': response.data['data'],
+        'message': _body(response)['message'],
+        'data': _body(response)['data'],
       };
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': e.response?.data['message'] ?? 'Gagal membatalkan tiket'
+        'message': _errorMessage(e.response?.data, 'Gagal membatalkan tiket')
       };
     }
   }
@@ -351,13 +391,13 @@ class TicketService {
       );
       return {
         'success': true,
-        'message': response.data['message'] ?? 'Booking berhasil dibatalkan',
-        'data': response.data['data'],
+        'message': _body(response)['message'] ?? 'Booking berhasil dibatalkan',
+        'data': _body(response)['data'],
       };
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': e.response?.data['message'] ?? 'Gagal membatalkan booking'
+        'message': _errorMessage(e.response?.data, 'Gagal membatalkan booking')
       };
     }
   }
@@ -367,8 +407,8 @@ class TicketService {
     try {
       final cleanId = id.replaceAll('-', '');
       final response = await _dio.post('/tickets/$cleanId/accept');
-      final data = response.data;
-      final message = (data is Map && data['message'] != null)
+      final data = _body(response);
+      final message = (data['message'] != null)
           ? data['message'].toString()
           : 'Hasil pekerjaan diterima';
       return {'success': true, 'message': message};
@@ -409,8 +449,8 @@ class TicketService {
           data: {'catatan': note},
         );
       }
-      final data = response.data;
-      final message = (data is Map && data['message'] != null)
+      final data = _body(response);
+      final message = (data['message'] != null)
           ? data['message'].toString()
           : 'Permintaan revisi terkirim';
       return {'success': true, 'message': message};
@@ -444,11 +484,11 @@ class TicketService {
           if (comment != null && comment.isNotEmpty) 'komentar': comment,
         },
       );
-      return {'success': true, 'message': response.data['message']};
+      return {'success': true, 'message': _body(response)['message']};
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': e.response?.data['message'] ?? 'Gagal memberi rating'
+        'message': _errorMessage(e.response?.data, 'Gagal memberi rating')
       };
     }
   }
@@ -460,9 +500,9 @@ class TicketService {
         'kondisi_kembali': kondisi,
         if (catatan != null && catatan.isNotEmpty) 'catatan_kembali': catatan,
       });
-      return {'success': true, 'message': response.data['message'] ?? 'Alat berhasil dikembalikan'};
+      return {'success': true, 'message': _body(response)['message'] ?? 'Alat berhasil dikembalikan'};
     } on DioException catch (e) {
-      return {'success': false, 'message': e.response?.data['message'] ?? 'Gagal menandai pengembalian alat'};
+      return {'success': false, 'message': _errorMessage(e.response?.data, 'Gagal menandai pengembalian alat')};
     }
   }
 
@@ -482,9 +522,9 @@ class TicketService {
       });
       return {
         'success': true,
-        'message': response.data['message'] ?? 'Formulir tiket berhasil diperbarui',
-        'data': response.data['data'],
-        'editHistories': response.data['editHistories'],
+        'message': _body(response)['message'] ?? 'Formulir tiket berhasil diperbarui',
+        'data': _body(response)['data'],
+        'editHistories': _body(response)['editHistories'],
       };
     } on DioException catch (e) {
       final data = e.response?.data;
@@ -509,9 +549,9 @@ class TicketService {
       final response = await _dio.patch('/tickets/$cleanId/priority', data: {
         'priority': priority,
       });
-      return {'success': true, 'message': response.data['message'] ?? 'Prioritas berhasil diubah'};
+      return {'success': true, 'message': _body(response)['message'] ?? 'Prioritas berhasil diubah'};
     } on DioException catch (e) {
-      return {'success': false, 'message': e.response?.data['message'] ?? 'Gagal mengubah prioritas'};
+      return {'success': false, 'message': _errorMessage(e.response?.data, 'Gagal mengubah prioritas')};
     }
   }
 }

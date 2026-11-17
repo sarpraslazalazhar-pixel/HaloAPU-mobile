@@ -936,11 +936,18 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
     switch (type) {
       case 'dropdown':
       case 'radio':
+        // Nilai draf bisa berasal dari versi formulir lama; hanya pakai jika
+        // masih ada di opsi (menghindari assert DropdownButton).
+        final saved = _formData[id];
+        final selected = saved is String && options.contains(saved) ? saved : null;
         inputWidget = DropdownButtonFormField<String>(
-          initialValue: _formData[id] is String ? _formData[id] : null,
+          initialValue: selected,
           decoration: _inputDecoration(),
           hint: const Text('Pilih opsi...'),
-          items: options.map((opt) => DropdownMenuItem(value: opt, child: Text(opt))).toList(),
+          items: options
+              .toSet()
+              .map((opt) => DropdownMenuItem(value: opt, child: Text(opt)))
+              .toList(),
           onChanged: (val) { setState(() { _formData[id] = val; _saveDraft(); }); },
         );
         break;

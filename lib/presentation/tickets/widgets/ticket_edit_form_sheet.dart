@@ -171,7 +171,7 @@ class _TicketEditFormSheetState extends State<TicketEditFormSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         DropdownButtonFormField<String>(
-                          initialValue: _priority,
+                          initialValue: kTicketPriorities.contains(_priority) ? _priority : null,
                           decoration: _decoration('Prioritas'),
                           items: kTicketPriorities
                               .map((p) => DropdownMenuItem(value: p, child: Text(p)))
@@ -220,11 +220,22 @@ class _TicketEditFormSheetState extends State<TicketEditFormSheet> {
     );
   }
 
-  InputDecoration _decoration(String label) => InputDecoration(
-        labelText: label,
-        isDense: true,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-      );
+  InputDecoration _decoration(String label) {
+    final radius = BorderRadius.circular(14);
+    const idle = Color(0xFFCBD5E1);
+    return InputDecoration(
+      labelText: label,
+      isDense: true,
+      filled: false,
+      border: OutlineInputBorder(borderRadius: radius, borderSide: const BorderSide(color: idle)),
+      enabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: const BorderSide(color: idle)),
+      disabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: const BorderSide(color: AppTheme.oceanWater, width: 1.8),
+      ),
+    );
+  }
 
   Widget _buildField(Map<String, dynamic> field) {
     final key = field['id'].toString();
@@ -242,7 +253,10 @@ class _TicketEditFormSheetState extends State<TicketEditFormSheet> {
         input = DropdownButtonFormField<String>(
           initialValue: options.contains(_formData[key]) ? _formData[key] as String : null,
           decoration: _decoration(label),
-          items: options.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
+          items: options
+              .toSet()
+              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+              .toList(),
           onChanged: (val) => setState(() => _formData[key] = val),
         );
         break;

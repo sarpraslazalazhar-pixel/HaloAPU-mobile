@@ -183,15 +183,19 @@ class _RatingHistoryScreenState extends ConsumerState<RatingHistoryScreen> {
                             padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
                             child: Row(
                               children: [
-                                Text(
-                                  widget.isAdmin ? 'Rating dari Karyawan' : 'Penilaian Anda',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: -0.5,
+                                Expanded(
+                                  child: Text(
+                                    widget.isAdmin ? 'Rating dari Karyawan' : 'Penilaian Anda',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: -0.5,
+                                    ),
                                   ),
                                 ),
-                                const Spacer(),
+                                const SizedBox(width: 12),
                                 Text(
                                   '${ratings.length} rating',
                                   style: TextStyle(
@@ -441,22 +445,26 @@ class _RatingCard extends StatelessWidget {
               children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppTheme.oceanWater.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  rating.category,
-                  style: const TextStyle(
-                    color: AppTheme.oceanWater,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppTheme.oceanWater.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    rating.category,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.oceanWater,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 _formatRelativeTime(rating.createdAt),
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
