@@ -250,7 +250,18 @@ class _TicketEditFormSheetState extends State<TicketEditFormSheet> {
     switch (type) {
       case 'dropdown':
       case 'radio':
+        if (options.isEmpty) {
+          input = TextFormField(
+            key: ValueKey('$key:empty'),
+            enabled: false,
+            decoration: _decoration(label).copyWith(
+              hintText: 'Opsi belum tersedia',
+            ),
+          );
+          break;
+        }
         input = DropdownButtonFormField<String>(
+          key: ValueKey('$key:${options.join('|')}'),
           initialValue: options.contains(_formData[key]) ? _formData[key] as String : null,
           decoration: _decoration(label),
           items: options

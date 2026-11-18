@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PermissionService {
@@ -42,16 +41,8 @@ class PermissionService {
       final bool fcmGranted = settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional;
 
-      // 2. Request Android 13+ Local Notifications permission
-      final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-      final androidPlugin = flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      
-      if (androidPlugin != null) {
-        final bool? localGranted = await androidPlugin.requestNotificationsPermission();
-        debugPrint('Android 13+ Local Notification permission: $localGranted');
-      }
-
+      // Firebase Messaging di Android 13+ sudah memicu dialog POST_NOTIFICATIONS,
+      // jadi tidak perlu plugin lokal kedua (instance baru = dialog tak muncul).
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_notificationGrantedKey, fcmGranted);
 

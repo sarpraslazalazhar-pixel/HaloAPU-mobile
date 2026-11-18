@@ -174,8 +174,18 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       delay: const Duration(milliseconds: 270),
                       child: _buildQuickActions(context),
                     ),
+                    EntranceAnimation(
+                      delay: const Duration(milliseconds: 315),
+                      child: _isLoading && _dashboardData == null
+                          ? const SizedBox.shrink()
+                          : _buildAssignedToMe(
+                              context,
+                              (_dashboardData?['assignedToMe'] ?? <TicketModel>[])
+                                  as List<TicketModel>,
+                            ),
+                    ),
                     const EntranceAnimation(
-                      delay: Duration(milliseconds: 315),
+                      delay: Duration(milliseconds: 330),
                       child: Padding(
                         padding: EdgeInsets.only(top: 24),
                         child: PendingRatingSection(isAdmin: true),
@@ -389,6 +399,62 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Section tiket yang ditugaskan ke admin yang sedang login.
+  Widget _buildAssignedToMe(BuildContext context, List<TicketModel> tickets) {
+    if (tickets.isEmpty) return const SizedBox.shrink();
+    final shown = tickets.take(5).toList();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.assignment_ind_outlined,
+                  size: 20, color: Color(0xFF4F46E5)),
+              const SizedBox(width: 8),
+              const Text(
+                'Ditugaskan ke Saya',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4F46E5).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${tickets.length}',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF4F46E5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (final ticket in shown)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _AdminTicketCard(
+                ticket: ticket,
+                onTap: () =>
+                    context.push('/tickets/admin/detail', extra: ticket),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -754,6 +820,34 @@ class _AdminStatsRow extends StatelessWidget {
   }
 }
 
+/// Badge kecil penanda asal pengajuan tiket (web / mobile).
+class _SourceBadge extends StatelessWidget {
+  final String source;
+
+  const _SourceBadge({required this.source});
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = source.toLowerCase() == 'mobile';
+    final color = isMobile ? const Color(0xFF0284C7) : const Color(0xFF64748B);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        isMobile ? 'Mobile' : 'Web',
+        style: TextStyle(
+          fontSize: 9.5,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
 class _AdminTicketCard extends StatelessWidget {
   final TicketModel ticket;
   final VoidCallback onTap;
@@ -809,12 +903,22 @@ class _AdminTicketCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      '${ticket.id} • ${ticket.requesterName}',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: Colors.grey.shade500,
-                      ),
+                    Row(
+                      children: [
+                        _SourceBadge(source: ticket.source),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            '${ticket.id} • ${ticket.requesterName}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

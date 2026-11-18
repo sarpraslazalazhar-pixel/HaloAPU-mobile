@@ -23,7 +23,9 @@ class PushNotificationService {
       FlutterLocalNotificationsPlugin();
 
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-    'halo_apu_high_importance_v2',
+    // Harus sama dengan meta-data default_notification_channel_id di AndroidManifest,
+    // kalau tidak push background memakai channel fallback (importance default).
+    'high_importance_channel',
     'Notifikasi Tiket Halo APU',
     description: 'Channel prioritas tinggi untuk pembaruan tiket dan pesan masuk.',
     importance: Importance.max,
@@ -32,15 +34,29 @@ class PushNotificationService {
     showBadge: true,
   );
 
+  /// Ikon small notification: siluet putih (mipmap launcher tampil kotak putih di Android 8+).
+  static const String _icon = 'ic_stat_notify';
+
   static bool _isInitialized = false;
+  static bool _localReady = false;
+  static bool _fcmWired = false;
+  static Future<void>? _initFuture;
   static Timer? _pollingTimer;
   static String? _lastKnownNotifId;
+  static int _notifIdCounter = DateTime.now().millisecondsSinceEpoch ~/ 1000;
   static VoidCallback? onNotificationReceived;
 
   /// Inisialisasi Firebase Messaging dan Flutter Local Notifications
-  static Future<void> init() async {
-    if (_isInitialized) return;
+  static Future<void> init() {
+    if (_isInitialized) return Future<void>.value();
+    // Gate agar pemanggil lain (token sync, show) menunggu init yang sama,
+    // dan retry tetap mungkin bila init gagal.
+    return _initFuture ??= _init().whenComplete(() {
+      if (!_isInitialized) _initFuture = null;
+    });
+  }
 
+  static Future<void> _init() async {
     try {
       // 1. Inisialisasi Firebase App jika belum (dengan timeout 3 detik)
       bool hasFirebase = false;
@@ -63,45 +79,10 @@ class PushNotificationService {
       }
 
       // 3. Inisialisasi Local Notifications
-      const AndroidInitializationSettings androidSettings =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
-      const DarwinInitializationSettings iosSettings =
-          DarwinInitializationSettings(
-        requestAlertPermission: true,
-        requestBadgePermission: true,
-        requestSoundPermission: true,
-      );
+      await _initLocal();
 
-      const InitializationSettings initSettings = InitializationSettings(
-        android: androidSettings,
-        iOS: iosSettings,
-      );
-
-      await _localNotifications.initialize(
-        settings: initSettings,
-        onDidReceiveNotificationResponse: (NotificationResponse response) {
-          final payload = response.payload;
-          if (payload != null && payload.isNotEmpty) {
-            try {
-              final Map<String, dynamic> data = jsonDecode(payload);
-              _handleNotificationData(data);
-            } catch (e) {
-              debugPrint('Error parsing notification payload: $e');
-            }
-          }
-        },
-      ).timeout(const Duration(seconds: 2));
-
-      // 4. Create Android Notification Channel
-      final androidPlugin = _localNotifications
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
-      if (androidPlugin != null) {
-        await androidPlugin.createNotificationChannel(_channel).timeout(const Duration(seconds: 2));
-      }
-
-      // 5-9. Setup FCM listener hanya jika Firebase tersedia
-      if (hasFirebase) {
+      // 5-9. Setup FCM listener hanya jika Firebase tersedia & belum terpasang
+      if (hasFirebase && !_fcmWired) {
         try {
           await FirebaseMessaging.instance
               .setForegroundNotificationPresentationOptions(
@@ -134,6 +115,7 @@ class PushNotificationService {
             debugPrint('FCM Token refreshed: $newToken');
             syncFcmTokenWithBackend(token: newToken);
           });
+          _fcmWired = true;
         } catch (e) {
           debugPrint('FCM listeners setup error: $e');
         }
@@ -142,6 +124,10 @@ class PushNotificationService {
       // 10. Mulai Real-time Poller otomatis
       startRealtimePoller();
 
+      // 11. Sinkronkan token bila sesi sudah ada (mis. app dibuka via deep link
+      // tanpa melewati dashboard).
+      unawaited(syncFcmTokenWithBackend());
+
       _isInitialized = true;
       debugPrint('PushNotificationService initialized successfully');
     } catch (e) {
@@ -149,28 +135,90 @@ class PushNotificationService {
     }
   }
 
+  /// Siapkan plugin notifikasi lokal + channel. Terpisah agar bisa dicoba
+  /// ulang tanpa mendaftarkan ulang listener FCM.
+  static Future<void> _initLocal() async {
+    if (_localReady) return;
+    const InitializationSettings initSettings = InitializationSettings(
+      android: AndroidInitializationSettings(_icon),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      ),
+    );
+
+    try {
+      await _localNotifications.initialize(
+        settings: initSettings,
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          final payload = response.payload;
+          if (payload == null || payload.isEmpty) return;
+          try {
+            _handleNotificationData(jsonDecode(payload) as Map<String, dynamic>);
+          } catch (e) {
+            debugPrint('Error parsing notification payload: $e');
+          }
+        },
+      ).timeout(const Duration(seconds: 2));
+
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.createNotificationChannel(_channel);
+      _localReady = true;
+    } catch (e) {
+      debugPrint('Local notifications init error: $e');
+    }
+
+    // Tap notifikasi lokal saat app terminated (tidak lewat getInitialMessage).
+    try {
+      final launchDetails =
+          await _localNotifications.getNotificationAppLaunchDetails();
+      final payload = launchDetails?.notificationResponse?.payload;
+      if (launchDetails?.didNotificationLaunchApp == true &&
+          payload != null &&
+          payload.isNotEmpty) {
+        Future.delayed(const Duration(milliseconds: 800), () {
+          try {
+            _handleNotificationData(jsonDecode(payload) as Map<String, dynamic>);
+          } catch (e) {
+            debugPrint('Error parsing launch payload: $e');
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Notification launch details error: $e');
+    }
+  }
+
   static int _lastUnreadCount = 0;
+  static bool _baselineSet = false;
   static bool _isCheckingNotifs = false;
 
   /// Memulai Real-time Poller untuk memeriksa notifikasi baru secara instan
   static void startRealtimePoller() {
-    _pollingTimer?.cancel();
-    _checkNewNotifications(isInitial: true);
+    // Sudah berjalan: jangan re-baseline (bisa melewatkan notif yang baru masuk).
+    if (_pollingTimer != null) return;
 
     // Polling setiap 25 detik (hemat baterai & ramah server)
     _pollingTimer = Timer.periodic(const Duration(seconds: 25), (_) {
       _checkNewNotifications();
     });
+    _checkNewNotifications();
   }
 
   /// Menghentikan Poller saat logout
   static void stopRealtimePoller() {
     _pollingTimer?.cancel();
     _pollingTimer = null;
+    _lastUnreadCount = 0;
+    _baselineSet = false;
+    _lastKnownNotifId = null;
   }
 
   /// Memeriksa notifikasi baru secara efisien dan membunyikan alert lokal jika ada pembaruan status
-  static Future<void> _checkNewNotifications({bool isInitial = false}) async {
+  static Future<void> _checkNewNotifications() async {
     if (_isCheckingNotifs) return;
     _isCheckingNotifs = true;
     try {
@@ -183,12 +231,13 @@ class PushNotificationService {
 
       final int currentUnread = countRes.data['data']?['count'] ?? 0;
 
-      if (isInitial) {
+      // Poll pertama hanya menetapkan baseline; jangan notifikasi item lama.
+      if (!_baselineSet) {
+        _baselineSet = true;
         _lastUnreadCount = currentUnread;
         return;
       }
 
-      // Jika ada notifikasi baru masuk
       if (currentUnread > _lastUnreadCount) {
         _lastUnreadCount = currentUnread;
         onNotificationReceived?.call();
@@ -234,14 +283,21 @@ class PushNotificationService {
     required String body,
     Map<String, dynamic>? data,
   }) async {
-    final AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
+    // WAJIB menunggu init: show sebelum initialize = notifikasi hilang senyap.
+    await init();
+    if (!_localReady) await _initLocal();
+    if (!_localReady) {
+      debugPrint('Skip local notification: local notifications not ready');
+      return;
+    }
+
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       _channel.id,
       _channel.name,
       channelDescription: _channel.description,
       importance: Importance.max,
       priority: Priority.max,
-      icon: '@mipmap/ic_launcher',
+      icon: _icon,
       playSound: true,
       enableVibration: true,
       visibility: NotificationVisibility.public,
@@ -260,14 +316,20 @@ class PushNotificationService {
       iOS: iosDetails,
     );
 
-    final int notifId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    await _localNotifications.show(
-      id: notifId,
-      title: title,
-      body: body,
-      notificationDetails: platformDetails,
-      payload: data != null ? jsonEncode(data) : null,
-    );
+    // Id unik per notifikasi; detik saja membuat 2 notifikasi dalam detik
+    // yang sama saling menimpa.
+    final int notifId = _notifIdCounter++;
+    try {
+      await _localNotifications.show(
+        id: notifId,
+        title: title,
+        body: body,
+        notificationDetails: platformDetails,
+        payload: data != null ? jsonEncode(data) : null,
+      );
+    } catch (e) {
+      debugPrint('Gagal menampilkan notifikasi lokal: $e');
+    }
   }
 
   /// Menampilkan notifikasi lokal heads-up banner saat pesan diterima dari FCM foreground
@@ -288,6 +350,7 @@ class PushNotificationService {
   /// Mengirimkan FCM Token ke backend Laravel agar device terdaftar
   static Future<void> syncFcmTokenWithBackend({String? token}) async {
     try {
+      await init();
       final authToken = await SafeSecureStorage.read('auth_token');
       if (authToken == null || authToken.isEmpty) {
         debugPrint('Skip FCM sync: User not logged in yet');

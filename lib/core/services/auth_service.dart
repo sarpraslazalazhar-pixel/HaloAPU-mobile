@@ -6,6 +6,7 @@ import 'package:halo_apu_mobile/core/services/attachment_service.dart';
 import 'package:halo_apu_mobile/core/services/device_service.dart';
 import 'package:halo_apu_mobile/core/services/biometric_service.dart';
 import 'package:halo_apu_mobile/core/services/cache_service.dart';
+import 'package:halo_apu_mobile/core/services/push_notification_service.dart';
 import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 class AuthService {
   Dio get _dio => Dio(BaseOptions(
@@ -110,6 +111,7 @@ class AuthService {
     } catch (_) {
       // Abaikan jika token gagal di-revoke di server saat offline
     } finally {
+      PushNotificationService.stopRealtimePoller();
       // Hanya hapus sesi user, pertahankan device_id dan biometric setting
       await SafeSecureStorage.clearSession();
       AttachmentService.clearTokenCache();

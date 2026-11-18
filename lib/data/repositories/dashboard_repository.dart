@@ -39,6 +39,7 @@ class DashboardRepository {
           'isOffline': false,
           'stats': stats,
           'recentTickets': tickets,
+          'assignedToMe': _parseTickets(data['assignedToMe']),
         };
       }
       final fallback = await _fallbackFromCache('Gagal mengambil data dari server (${response.statusCode})');
@@ -117,6 +118,7 @@ class DashboardRepository {
           'message': reason,
           'stats': stats,
           'recentTickets': tickets,
+          'assignedToMe': _parseTickets(data['assignedToMe']),
         };
       }
     } catch (_) {}
@@ -128,6 +130,7 @@ class DashboardRepository {
       'message': reason,
       'stats': _defaultStats(),
       'recentTickets': <TicketModel>[],
+      'assignedToMe': <TicketModel>[],
     };
   }
 }

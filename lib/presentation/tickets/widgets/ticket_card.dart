@@ -180,6 +180,34 @@ class TicketCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
+                    if (ticket.source.toLowerCase() == 'mobile') ...[
+                      Container(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.smartphone_rounded,
+                                size: 12, color: Color(0xFF2563EB)),
+                            SizedBox(width: 4),
+                            Text(
+                              'Mobile',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF2563EB),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     // Status Badge
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

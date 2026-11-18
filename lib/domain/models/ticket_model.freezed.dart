@@ -16,7 +16,8 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$TicketModel {
 
- String get id; String get title; String get description; String get category; TicketStatus get status; DateTime get createdAt; String get requesterName; String? get assignedTo; String? get attachmentUrl; List<TicketReply>? get logs; List<Map<String, dynamic>>? get operators; Map<String, dynamic>? get csat;
+ String get id; String get title; String get description; String get category; TicketStatus get status; DateTime get createdAt; String get requesterName; String? get assignedTo;/// Asal pengajuan tiket: 'web' atau 'mobile'.
+ String get source; String? get attachmentUrl;@JsonKey(includeToJson: false) List<TicketReply>? get logs; List<Map<String, dynamic>>? get operators; Map<String, dynamic>? get csat;
 /// Create a copy of TicketModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -29,16 +30,16 @@ $TicketModelCopyWith<TicketModel> get copyWith => _$TicketModelCopyWithImpl<Tick
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TicketModel&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.description, description) || other.description == description)&&(identical(other.category, category) || other.category == category)&&(identical(other.status, status) || other.status == status)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.requesterName, requesterName) || other.requesterName == requesterName)&&(identical(other.assignedTo, assignedTo) || other.assignedTo == assignedTo)&&(identical(other.attachmentUrl, attachmentUrl) || other.attachmentUrl == attachmentUrl)&&const DeepCollectionEquality().equals(other.logs, logs)&&const DeepCollectionEquality().equals(other.operators, operators)&&const DeepCollectionEquality().equals(other.csat, csat));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TicketModel&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.description, description) || other.description == description)&&(identical(other.category, category) || other.category == category)&&(identical(other.status, status) || other.status == status)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.requesterName, requesterName) || other.requesterName == requesterName)&&(identical(other.assignedTo, assignedTo) || other.assignedTo == assignedTo)&&(identical(other.source, source) || other.source == source)&&(identical(other.attachmentUrl, attachmentUrl) || other.attachmentUrl == attachmentUrl)&&const DeepCollectionEquality().equals(other.logs, logs)&&const DeepCollectionEquality().equals(other.operators, operators)&&const DeepCollectionEquality().equals(other.csat, csat));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,description,category,status,createdAt,requesterName,assignedTo,attachmentUrl,const DeepCollectionEquality().hash(logs),const DeepCollectionEquality().hash(operators),const DeepCollectionEquality().hash(csat));
+int get hashCode => Object.hash(runtimeType,id,title,description,category,status,createdAt,requesterName,assignedTo,source,attachmentUrl,const DeepCollectionEquality().hash(logs),const DeepCollectionEquality().hash(operators),const DeepCollectionEquality().hash(csat));
 
 @override
 String toString() {
-  return 'TicketModel(id: $id, title: $title, description: $description, category: $category, status: $status, createdAt: $createdAt, requesterName: $requesterName, assignedTo: $assignedTo, attachmentUrl: $attachmentUrl, logs: $logs, operators: $operators, csat: $csat)';
+  return 'TicketModel(id: $id, title: $title, description: $description, category: $category, status: $status, createdAt: $createdAt, requesterName: $requesterName, assignedTo: $assignedTo, source: $source, attachmentUrl: $attachmentUrl, logs: $logs, operators: $operators, csat: $csat)';
 }
 
 
@@ -49,7 +50,7 @@ abstract mixin class $TicketModelCopyWith<$Res>  {
   factory $TicketModelCopyWith(TicketModel value, $Res Function(TicketModel) _then) = _$TicketModelCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, String description, String category, TicketStatus status, DateTime createdAt, String requesterName, String? assignedTo, String? attachmentUrl, List<TicketReply>? logs, List<Map<String, dynamic>>? operators, Map<String, dynamic>? csat
+ String id, String title, String description, String category, TicketStatus status, DateTime createdAt, String requesterName, String? assignedTo, String source, String? attachmentUrl,@JsonKey(includeToJson: false) List<TicketReply>? logs, List<Map<String, dynamic>>? operators, Map<String, dynamic>? csat
 });
 
 
@@ -66,7 +67,7 @@ class _$TicketModelCopyWithImpl<$Res>
 
 /// Create a copy of TicketModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? description = null,Object? category = null,Object? status = null,Object? createdAt = null,Object? requesterName = null,Object? assignedTo = freezed,Object? attachmentUrl = freezed,Object? logs = freezed,Object? operators = freezed,Object? csat = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? description = null,Object? category = null,Object? status = null,Object? createdAt = null,Object? requesterName = null,Object? assignedTo = freezed,Object? source = null,Object? attachmentUrl = freezed,Object? logs = freezed,Object? operators = freezed,Object? csat = freezed,}) {
   return _then(TicketModel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -76,7 +77,8 @@ as String,status: null == status ? _self.status : status // ignore: cast_nullabl
 as TicketStatus,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,requesterName: null == requesterName ? _self.requesterName : requesterName // ignore: cast_nullable_to_non_nullable
 as String,assignedTo: freezed == assignedTo ? _self.assignedTo : assignedTo // ignore: cast_nullable_to_non_nullable
-as String?,attachmentUrl: freezed == attachmentUrl ? _self.attachmentUrl : attachmentUrl // ignore: cast_nullable_to_non_nullable
+as String?,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
+as String,attachmentUrl: freezed == attachmentUrl ? _self.attachmentUrl : attachmentUrl // ignore: cast_nullable_to_non_nullable
 as String?,logs: freezed == logs ? _self.logs : logs // ignore: cast_nullable_to_non_nullable
 as List<TicketReply>?,operators: freezed == operators ? _self.operators : operators // ignore: cast_nullable_to_non_nullable
 as List<Map<String, dynamic>>?,csat: freezed == csat ? _self.csat : csat // ignore: cast_nullable_to_non_nullable
@@ -162,10 +164,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String description,  String category,  TicketStatus status,  DateTime createdAt,  String requesterName,  String? assignedTo,  String? attachmentUrl,  List<TicketReply>? logs,  List<Map<String, dynamic>>? operators,  Map<String, dynamic>? csat)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String description,  String category,  TicketStatus status,  DateTime createdAt,  String requesterName,  String? assignedTo,  String source,  String? attachmentUrl, @JsonKey(includeToJson: false)  List<TicketReply>? logs,  List<Map<String, dynamic>>? operators,  Map<String, dynamic>? csat)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TicketModel() when $default != null:
-return $default(_that.id,_that.title,_that.description,_that.category,_that.status,_that.createdAt,_that.requesterName,_that.assignedTo,_that.attachmentUrl,_that.logs,_that.operators,_that.csat);case _:
+return $default(_that.id,_that.title,_that.description,_that.category,_that.status,_that.createdAt,_that.requesterName,_that.assignedTo,_that.source,_that.attachmentUrl,_that.logs,_that.operators,_that.csat);case _:
   return orElse();
 
 }
@@ -183,10 +185,10 @@ return $default(_that.id,_that.title,_that.description,_that.category,_that.stat
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String description,  String category,  TicketStatus status,  DateTime createdAt,  String requesterName,  String? assignedTo,  String? attachmentUrl,  List<TicketReply>? logs,  List<Map<String, dynamic>>? operators,  Map<String, dynamic>? csat)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String description,  String category,  TicketStatus status,  DateTime createdAt,  String requesterName,  String? assignedTo,  String source,  String? attachmentUrl, @JsonKey(includeToJson: false)  List<TicketReply>? logs,  List<Map<String, dynamic>>? operators,  Map<String, dynamic>? csat)  $default,) {final _that = this;
 switch (_that) {
 case _TicketModel():
-return $default(_that.id,_that.title,_that.description,_that.category,_that.status,_that.createdAt,_that.requesterName,_that.assignedTo,_that.attachmentUrl,_that.logs,_that.operators,_that.csat);}
+return $default(_that.id,_that.title,_that.description,_that.category,_that.status,_that.createdAt,_that.requesterName,_that.assignedTo,_that.source,_that.attachmentUrl,_that.logs,_that.operators,_that.csat);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -200,10 +202,10 @@ return $default(_that.id,_that.title,_that.description,_that.category,_that.stat
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String description,  String category,  TicketStatus status,  DateTime createdAt,  String requesterName,  String? assignedTo,  String? attachmentUrl,  List<TicketReply>? logs,  List<Map<String, dynamic>>? operators,  Map<String, dynamic>? csat)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String description,  String category,  TicketStatus status,  DateTime createdAt,  String requesterName,  String? assignedTo,  String source,  String? attachmentUrl, @JsonKey(includeToJson: false)  List<TicketReply>? logs,  List<Map<String, dynamic>>? operators,  Map<String, dynamic>? csat)?  $default,) {final _that = this;
 switch (_that) {
 case _TicketModel() when $default != null:
-return $default(_that.id,_that.title,_that.description,_that.category,_that.status,_that.createdAt,_that.requesterName,_that.assignedTo,_that.attachmentUrl,_that.logs,_that.operators,_that.csat);case _:
+return $default(_that.id,_that.title,_that.description,_that.category,_that.status,_that.createdAt,_that.requesterName,_that.assignedTo,_that.source,_that.attachmentUrl,_that.logs,_that.operators,_that.csat);case _:
   return null;
 
 }
@@ -215,7 +217,7 @@ return $default(_that.id,_that.title,_that.description,_that.category,_that.stat
 @JsonSerializable()
 
 class _TicketModel implements TicketModel {
-  const _TicketModel({required this.id, required this.title, required this.description, required this.category, required this.status, required this.createdAt, required this.requesterName, this.assignedTo, this.attachmentUrl,  List<TicketReply>? logs,  List<Map<String, dynamic>>? operators,  Map<String, dynamic>? csat}): _logs = logs,_operators = operators,_csat = csat;
+  const _TicketModel({required this.id, required this.title, required this.description, required this.category, required this.status, required this.createdAt, required this.requesterName, this.assignedTo, this.source = 'web', this.attachmentUrl, @JsonKey(includeToJson: false)  List<TicketReply>? logs,  List<Map<String, dynamic>>? operators,  Map<String, dynamic>? csat}): _logs = logs,_operators = operators,_csat = csat;
   factory _TicketModel.fromJson(Map<String, dynamic> json) => _$TicketModelFromJson(json);
 
 @override final  String id;
@@ -226,9 +228,11 @@ class _TicketModel implements TicketModel {
 @override final  DateTime createdAt;
 @override final  String requesterName;
 @override final  String? assignedTo;
+/// Asal pengajuan tiket: 'web' atau 'mobile'.
+@override@JsonKey() final  String source;
 @override final  String? attachmentUrl;
  final  List<TicketReply>? _logs;
-@override List<TicketReply>? get logs {
+@override@JsonKey(includeToJson: false) List<TicketReply>? get logs {
   final value = _logs;
   if (value == null) return null;
   if (_logs is EqualUnmodifiableListView) return _logs;
@@ -268,16 +272,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TicketModel&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.description, description) || other.description == description)&&(identical(other.category, category) || other.category == category)&&(identical(other.status, status) || other.status == status)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.requesterName, requesterName) || other.requesterName == requesterName)&&(identical(other.assignedTo, assignedTo) || other.assignedTo == assignedTo)&&(identical(other.attachmentUrl, attachmentUrl) || other.attachmentUrl == attachmentUrl)&&const DeepCollectionEquality().equals(other._logs, _logs)&&const DeepCollectionEquality().equals(other._operators, _operators)&&const DeepCollectionEquality().equals(other._csat, _csat));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TicketModel&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.description, description) || other.description == description)&&(identical(other.category, category) || other.category == category)&&(identical(other.status, status) || other.status == status)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.requesterName, requesterName) || other.requesterName == requesterName)&&(identical(other.assignedTo, assignedTo) || other.assignedTo == assignedTo)&&(identical(other.source, source) || other.source == source)&&(identical(other.attachmentUrl, attachmentUrl) || other.attachmentUrl == attachmentUrl)&&const DeepCollectionEquality().equals(other._logs, _logs)&&const DeepCollectionEquality().equals(other._operators, _operators)&&const DeepCollectionEquality().equals(other._csat, _csat));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,description,category,status,createdAt,requesterName,assignedTo,attachmentUrl,const DeepCollectionEquality().hash(_logs),const DeepCollectionEquality().hash(_operators),const DeepCollectionEquality().hash(_csat));
+int get hashCode => Object.hash(runtimeType,id,title,description,category,status,createdAt,requesterName,assignedTo,source,attachmentUrl,const DeepCollectionEquality().hash(_logs),const DeepCollectionEquality().hash(_operators),const DeepCollectionEquality().hash(_csat));
 
 @override
 String toString() {
-  return 'TicketModel(id: $id, title: $title, description: $description, category: $category, status: $status, createdAt: $createdAt, requesterName: $requesterName, assignedTo: $assignedTo, attachmentUrl: $attachmentUrl, logs: $logs, operators: $operators, csat: $csat)';
+  return 'TicketModel(id: $id, title: $title, description: $description, category: $category, status: $status, createdAt: $createdAt, requesterName: $requesterName, assignedTo: $assignedTo, source: $source, attachmentUrl: $attachmentUrl, logs: $logs, operators: $operators, csat: $csat)';
 }
 
 
@@ -288,7 +292,7 @@ abstract mixin class _$TicketModelCopyWith<$Res> implements $TicketModelCopyWith
   factory _$TicketModelCopyWith(_TicketModel value, $Res Function(_TicketModel) _then) = __$TicketModelCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, String description, String category, TicketStatus status, DateTime createdAt, String requesterName, String? assignedTo, String? attachmentUrl, List<TicketReply>? logs, List<Map<String, dynamic>>? operators, Map<String, dynamic>? csat
+ String id, String title, String description, String category, TicketStatus status, DateTime createdAt, String requesterName, String? assignedTo, String source, String? attachmentUrl,@JsonKey(includeToJson: false) List<TicketReply>? logs, List<Map<String, dynamic>>? operators, Map<String, dynamic>? csat
 });
 
 
@@ -305,7 +309,7 @@ class __$TicketModelCopyWithImpl<$Res>
 
 /// Create a copy of TicketModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? description = null,Object? category = null,Object? status = null,Object? createdAt = null,Object? requesterName = null,Object? assignedTo = freezed,Object? attachmentUrl = freezed,Object? logs = freezed,Object? operators = freezed,Object? csat = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? description = null,Object? category = null,Object? status = null,Object? createdAt = null,Object? requesterName = null,Object? assignedTo = freezed,Object? source = null,Object? attachmentUrl = freezed,Object? logs = freezed,Object? operators = freezed,Object? csat = freezed,}) {
   return _then(_TicketModel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -315,7 +319,8 @@ as String,status: null == status ? _self.status : status // ignore: cast_nullabl
 as TicketStatus,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,requesterName: null == requesterName ? _self.requesterName : requesterName // ignore: cast_nullable_to_non_nullable
 as String,assignedTo: freezed == assignedTo ? _self.assignedTo : assignedTo // ignore: cast_nullable_to_non_nullable
-as String?,attachmentUrl: freezed == attachmentUrl ? _self.attachmentUrl : attachmentUrl // ignore: cast_nullable_to_non_nullable
+as String?,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
+as String,attachmentUrl: freezed == attachmentUrl ? _self.attachmentUrl : attachmentUrl // ignore: cast_nullable_to_non_nullable
 as String?,logs: freezed == logs ? _self._logs : logs // ignore: cast_nullable_to_non_nullable
 as List<TicketReply>?,operators: freezed == operators ? _self._operators : operators // ignore: cast_nullable_to_non_nullable
 as List<Map<String, dynamic>>?,csat: freezed == csat ? _self._csat : csat // ignore: cast_nullable_to_non_nullable
@@ -325,7 +330,6 @@ as Map<String, dynamic>?,
 
 
 }
-
 
 /// @nodoc
 mixin _$TicketReply {
@@ -337,8 +341,6 @@ mixin _$TicketReply {
 @pragma('vm:prefer-inline')
 $TicketReplyCopyWith<TicketReply> get copyWith => _$TicketReplyCopyWithImpl<TicketReply>(this as TicketReply, _$identity);
 
-  /// Serializes this TicketReply to a JSON map.
-  Map<String, dynamic> toJson();
 
 
 @override
@@ -346,7 +348,7 @@ bool operator ==(Object other) {
   return identical(this, other) || (other.runtimeType == runtimeType&&other is TicketReply&&(identical(other.id, id) || other.id == id)&&(identical(other.action, action) || other.action == action)&&(identical(other.note, note) || other.note == note)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.adminName, adminName) || other.adminName == adminName)&&(identical(other.isFromAdmin, isFromAdmin) || other.isFromAdmin == isFromAdmin)&&const DeepCollectionEquality().equals(other.attachments, attachments));
 }
 
-@JsonKey(includeFromJson: false, includeToJson: false)
+
 @override
 int get hashCode => Object.hash(runtimeType,id,action,note,createdAt,adminName,isFromAdmin,const DeepCollectionEquality().hash(attachments));
 
@@ -521,11 +523,11 @@ return $default(_that.id,_that.action,_that.note,_that.createdAt,_that.adminName
 }
 
 /// @nodoc
-@JsonSerializable()
+
 
 class _TicketReply implements TicketReply {
   const _TicketReply({required this.id, required this.action, required this.note, required this.createdAt, this.adminName, required this.isFromAdmin,  List<Map<String, dynamic>>? attachments}): _attachments = attachments;
-  factory _TicketReply.fromJson(Map<String, dynamic> json) => _$TicketReplyFromJson(json);
+  
 
 @override final  int id;
 @override final  String action;
@@ -549,17 +551,14 @@ class _TicketReply implements TicketReply {
 @pragma('vm:prefer-inline')
 _$TicketReplyCopyWith<_TicketReply> get copyWith => __$TicketReplyCopyWithImpl<_TicketReply>(this, _$identity);
 
-@override
-Map<String, dynamic> toJson() {
-  return _$TicketReplyToJson(this, );
-}
+
 
 @override
 bool operator ==(Object other) {
   return identical(this, other) || (other.runtimeType == runtimeType&&other is _TicketReply&&(identical(other.id, id) || other.id == id)&&(identical(other.action, action) || other.action == action)&&(identical(other.note, note) || other.note == note)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.adminName, adminName) || other.adminName == adminName)&&(identical(other.isFromAdmin, isFromAdmin) || other.isFromAdmin == isFromAdmin)&&const DeepCollectionEquality().equals(other._attachments, _attachments));
 }
 
-@JsonKey(includeFromJson: false, includeToJson: false)
+
 @override
 int get hashCode => Object.hash(runtimeType,id,action,note,createdAt,adminName,isFromAdmin,const DeepCollectionEquality().hash(_attachments));
 

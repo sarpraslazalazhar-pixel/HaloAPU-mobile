@@ -26,8 +26,10 @@ sealed class TicketModel with _$TicketModel {
     required DateTime createdAt,
     required String requesterName,
     String? assignedTo,
+    /// Asal pengajuan tiket: 'web' atau 'mobile'.
+    @Default('web') String source,
     String? attachmentUrl,
-    List<TicketReply>? logs,
+    @JsonKey(includeToJson: false) List<TicketReply>? logs,
     List<Map<String, dynamic>>? operators,
     Map<String, dynamic>? csat,
   }) = _TicketModel;
@@ -165,6 +167,19 @@ sealed class TicketReply with _$TicketReply {
     return _$TicketReplyFromJson(map);
   }
 }
+
+// TicketReply punya fromJson kustom, jadi generator tidak membuat helper-nya.
+TicketReply _$TicketReplyFromJson(Map<String, dynamic> json) => TicketReply(
+      id: json['id'] as int,
+      action: json['action'] as String,
+      note: json['note'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      adminName: json['adminName'] as String?,
+      isFromAdmin: json['isFromAdmin'] as bool,
+      attachments: (json['attachments'] as List<dynamic>?)
+          ?.map((e) => e as Map<String, dynamic>)
+          .toList(),
+    );
 
 extension TicketModelX on TicketModel {
   String? get priority => parsedFormData?['priority']?.toString();

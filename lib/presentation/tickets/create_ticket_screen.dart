@@ -940,7 +940,21 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
         // masih ada di opsi (menghindari assert DropdownButton).
         final saved = _formData[id];
         final selected = saved is String && options.contains(saved) ? saved : null;
+        if (options.isEmpty) {
+          inputWidget = TextFormField(
+            key: ValueKey('$id:empty'),
+            enabled: false,
+            decoration: _inputDecoration().copyWith(
+              hintText: 'Opsi belum tersedia, hubungi admin',
+              suffixIcon: const Icon(Icons.block_rounded, size: 18),
+            ),
+          );
+          break;
+        }
         inputWidget = DropdownButtonFormField<String>(
+          // Opsi bisa berubah saat katalog dimuat ulang; kunci ini membuang
+          // state FormField lama yang nilainya tak ada lagi di items.
+          key: ValueKey('$id:${options.join('|')}'),
           initialValue: selected,
           decoration: _inputDecoration(),
           hint: const Text('Pilih opsi...'),
