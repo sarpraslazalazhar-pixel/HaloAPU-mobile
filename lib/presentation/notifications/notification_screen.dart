@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:halo_apu_mobile/core/config/app_flavor.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/domain/models/notification_model.dart';
 import '../tickets/providers/user_ticket_provider.dart';
@@ -9,6 +10,7 @@ import '../widgets/entrance_animation.dart';
 import '../widgets/shimmer.dart';
 import '../widgets/pagination_footer.dart';
 import '../widgets/app_error_view.dart';
+import '../widgets/app_update_dialog.dart';
 import 'package:halo_apu_mobile/core/services/push_notification_service.dart';
 import 'package:halo_apu_mobile/core/services/session_manager.dart';
 import 'package:halo_apu_mobile/core/services/ticket_service.dart';
@@ -69,6 +71,31 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
   Future<void> _openNotification(NotificationModel notification) async {
     final notifier = ref.read(notificationProvider.notifier);
     notifier.markAsRead(notification.id);
+
+    if (notification.type == NotificationType.appUpdate) {
+      final notifChannel = notification.channel?.trim().toLowerCase();
+      final activeChannel = FlavorConfig.releaseChannel.trim().toLowerCase();
+      if (notifChannel != null &&
+          notifChannel.isNotEmpty &&
+          notifChannel != activeChannel) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              content: Text(
+                'Notifikasi pembaruan ini untuk channel $notifChannel (aplikasi ini menggunakan channel $activeChannel).',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (mounted) {
+        await AppUpdateDialog.checkAndShow(context, manual: true);
+      }
+      return;
+    }
 
     // 1. Resolve ticket ID (baik dari property ticketId maupun regex title/body)
     String? rawTicketId = notification.ticketId;
@@ -410,6 +437,34 @@ class _NotificationItem extends StatelessWidget {
                             color: Colors.grey.shade400,
                           ),
                         ),
+                        if (notification.type == NotificationType.appUpdate) ...[
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.oceanWater.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                notification.versionName != null &&
+                                        notification.versionName!.isNotEmpty
+                                    ? 'Update Aplikasi • v${notification.versionName}'
+                                    : 'Update Aplikasi',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.oceanWater,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -531,6 +586,7 @@ List<({String label, List<NotificationModel> items})> _groupByDate(
     NotificationType.sla => (Icons.timer_outlined, AppTheme.warning),
     NotificationType.revision => (Icons.refresh_rounded, AppTheme.brilliantBlue),
     NotificationType.edited => (Icons.published_with_changes_rounded, AppTheme.warning),
+    NotificationType.appUpdate => (Icons.system_update_rounded, AppTheme.oceanWater),
     NotificationType.ticket => (Icons.confirmation_number_outlined, AppTheme.brilliantBlue),
   };
 }

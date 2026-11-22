@@ -21,7 +21,10 @@ class NotificationRepository {
       );
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data['data'] ?? [];
-        final list = data.map((json) => NotificationModel.fromJson(json)).toList();
+        final list = data
+            .whereType<Map>()
+            .map((json) => NotificationModel.safeFromJson(Map<String, dynamic>.from(json)))
+            .toList();
         return {'success': true, 'data': list, 'meta': response.data['meta']};
       }
       return {'success': false, 'message': 'Gagal mengambil notifikasi'};

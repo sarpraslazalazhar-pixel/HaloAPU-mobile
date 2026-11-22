@@ -11,10 +11,17 @@ _NotificationModel _$NotificationModelFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       title: json['title'] as String,
       body: json['body'] as String,
-      type: $enumDecode(_$NotificationTypeEnumMap, json['type']),
+      type: $enumDecode(
+        _$NotificationTypeEnumMap,
+        json['type'],
+        unknownValue: NotificationType.ticket,
+      ),
       createdAt: DateTime.parse(json['createdAt'] as String),
       isRead: json['isRead'] as bool,
       ticketId: json['ticketId'] as String?,
+      channel: json['channel'] as String?,
+      versionName: json['version_name'] as String?,
+      buildNumber: _parseOptionalInt(json['build_number']),
     );
 
 Map<String, dynamic> _$NotificationModelToJson(_NotificationModel instance) =>
@@ -26,6 +33,9 @@ Map<String, dynamic> _$NotificationModelToJson(_NotificationModel instance) =>
       'createdAt': instance.createdAt.toIso8601String(),
       'isRead': instance.isRead,
       'ticketId': instance.ticketId,
+      'channel': instance.channel,
+      'version_name': instance.versionName,
+      'build_number': instance.buildNumber,
     };
 
 const _$NotificationTypeEnumMap = {
@@ -37,4 +47,5 @@ const _$NotificationTypeEnumMap = {
   NotificationType.csat: 'csat',
   NotificationType.sla: 'sla',
   NotificationType.edited: 'edited',
+  NotificationType.appUpdate: 'app_update',
 };

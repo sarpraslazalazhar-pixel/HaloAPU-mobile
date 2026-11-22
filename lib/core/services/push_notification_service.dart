@@ -252,20 +252,20 @@ class PushNotificationService {
 
         if (notifListResponse.statusCode == 200) {
           final List<dynamic> list = notifListResponse.data['data'] ?? [];
-          if (list.isNotEmpty) {
-            final latest = list.first as Map<String, dynamic>;
+          if (list.isNotEmpty && list.first is Map) {
+            final latest = Map<String, dynamic>.from(list.first as Map);
             final id = latest['id']?.toString();
 
             if (id != null && id != _lastKnownNotifId) {
               _lastKnownNotifId = id;
-              await showNotificationAlert(
-                title: latest['title'] ?? 'Pembaruan Tiket',
-                body: latest['body'] ?? 'Ada perubahan status pada tiket Anda',
-                data: {
-                  'ticket_id': latest['ticketId'] ?? latest['ticket_id'],
-                  'id': id,
-                },
-              );
+              final alert = buildAlertFromNotificationJson(latest);
+              if (alert != null) {
+                await showNotificationAlert(
+                  title: alert.title,
+                  body: alert.body,
+                  data: alert.data,
+                );
+              }
             }
           }
         }
@@ -334,6 +334,102 @@ class PushNotificationService {
     }
   }
 
+  /// Membentuk payload banner lokal dari item `GET /api/notifications`.
+  /// Mengembalikan `null` jika item adalah `app_update` untuk channel lain.
+  @visibleForTesting
+  static ({String title, String body, Map<String, dynamic> data})?
+      buildAlertFromNotificationJson(
+    Map<String, dynamic> latest, {
+    String? currentChannel,
+  }) {
+    final nestedData = latest['data'] is Map
+        ? Map<String, dynamic>.from(latest['data'] as Map)
+        : null;
+    final nestedMeta = latest['meta'] is Map
+        ? Map<String, dynamic>.from(latest['meta'] as Map)
+        : null;
+
+    String? pickText(List<dynamic> candidates) {
+      for (final candidate in candidates) {
+        final text = candidate?.toString().trim();
+        if (text != null && text.isNotEmpty) return text;
+      }
+      return null;
+    }
+
+    final id = pickText([latest['id']]);
+    final rawType = pickText([
+      latest['type'],
+      nestedData?['type'],
+      nestedMeta?['type'],
+    ]);
+
+    if (rawType == 'app_update') {
+      final channel = pickText([
+        latest['channel'],
+        nestedData?['channel'],
+        nestedMeta?['channel'],
+      ]);
+      final versionName = pickText([
+        latest['version_name'],
+        latest['versionName'],
+        nestedData?['version_name'],
+        nestedData?['versionName'],
+        nestedMeta?['version_name'],
+        nestedMeta?['versionName'],
+      ]);
+      final buildNumber = pickText([
+        latest['build_number'],
+        latest['buildNumber'],
+        nestedData?['build_number'],
+        nestedData?['buildNumber'],
+        nestedMeta?['build_number'],
+        nestedMeta?['buildNumber'],
+      ]);
+
+      final payload = <String, dynamic>{
+        'type': 'app_update',
+        if (channel != null) 'channel': channel,
+        if (versionName != null) 'version_name': versionName,
+        if (buildNumber != null) 'build_number': buildNumber,
+        if (id != null) 'id': id,
+      };
+
+      if (shouldIgnoreAppUpdatePayload(payload, currentChannel: currentChannel)) {
+        return null;
+      }
+
+      return (
+        title: pickText([latest['title'], nestedData?['title']]) ??
+            'Pembaruan Aplikasi Tersedia',
+        body: pickText([
+              latest['body'],
+              latest['message'],
+              nestedData?['body'],
+              nestedData?['message'],
+            ]) ??
+            'Versi baru Halo APU tersedia untuk diunduh.',
+        data: payload,
+      );
+    }
+
+    final ticketId = latest['ticketId'] ??
+        latest['ticket_id'] ??
+        nestedData?['ticketId'] ??
+        nestedData?['ticket_id'];
+
+    return (
+      title: pickText([latest['title']]) ?? 'Pembaruan Tiket',
+      body: pickText([latest['body'], latest['message']]) ??
+          'Ada perubahan status pada tiket Anda',
+      data: <String, dynamic>{
+        if (rawType != null) 'type': rawType,
+        'ticket_id': ticketId,
+        if (id != null) 'id': id,
+      },
+    );
+  }
+
   /// Mengembalikan `true` jika payload `app_update` ditujukan untuk channel lain
   /// sehingga tidak memicu banner atau dialog pada flavor yang berbeda.
   @visibleForTesting
@@ -348,6 +444,12 @@ class PushNotificationService {
         (currentChannel ?? FlavorConfig.releaseChannel).trim().toLowerCase();
     return payloadChannel != activeChannel;
   }
+
+  @visibleForTesting
+  static Future<void> handleNotificationDataForTest(
+    Map<String, dynamic> data,
+  ) =>
+      _handleNotificationData(data);
 
   /// Menampilkan notifikasi lokal heads-up banner saat pesan diterima dari FCM foreground
   static Future<void> _showLocalNotification(RemoteMessage message) async {

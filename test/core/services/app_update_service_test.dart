@@ -8,6 +8,7 @@ import 'package:halo_apu_mobile/core/config/app_flavor.dart';
 import 'package:halo_apu_mobile/core/services/app_update_service.dart';
 import 'package:halo_apu_mobile/core/services/push_notification_service.dart';
 import 'package:halo_apu_mobile/domain/models/app_release_model.dart';
+import 'package:halo_apu_mobile/domain/models/notification_model.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -426,5 +427,148 @@ void main() {
       ),
       isFalse,
     );
+  });
+
+  test('PushNotificationService.buildAlertFromNotificationJson extracts app_update payload and filters channel', () {
+    // Flat app_update notification matching current channel
+    final flatMatch = PushNotificationService.buildAlertFromNotificationJson(
+      {
+        'id': 'notif-1',
+        'type': 'app_update',
+        'title': 'Pembaruan Tersedia',
+        'body': 'Halo APU v1.0.3 sudah rilis',
+        'channel': 'staging',
+        'version_name': '1.0.3',
+        'build_number': 15,
+      },
+      currentChannel: 'staging',
+    );
+    expect(flatMatch, isNotNull);
+    expect(flatMatch!.title, equals('Pembaruan Tersedia'));
+    expect(flatMatch.body, equals('Halo APU v1.0.3 sudah rilis'));
+    expect(flatMatch.data, equals({
+      'type': 'app_update',
+      'channel': 'staging',
+      'version_name': '1.0.3',
+      'build_number': '15',
+      'id': 'notif-1',
+    }));
+
+    // Nested data['type'] == 'app_update' matching channel
+    final nestedMatch = PushNotificationService.buildAlertFromNotificationJson(
+      {
+        'id': 'notif-2',
+        'title': 'Update Produksi',
+        'message': 'Segera perbarui ke v1.1.0',
+        'data': {
+          'type': 'app_update',
+          'channel': 'production',
+          'version_name': '1.1.0',
+          'build_number': '20',
+        },
+      },
+      currentChannel: 'production',
+    );
+    expect(nestedMatch, isNotNull);
+    expect(nestedMatch!.data['type'], equals('app_update'));
+    expect(nestedMatch.data['channel'], equals('production'));
+    expect(nestedMatch.data['version_name'], equals('1.1.0'));
+    expect(nestedMatch.data['build_number'], equals('20'));
+
+    // Mismatched channel (production notif while running staging) -> ignored (null)
+    final mismatched = PushNotificationService.buildAlertFromNotificationJson(
+      {
+        'id': 'notif-3',
+        'type': 'app_update',
+        'title': 'Update Produksi',
+        'body': 'Rilis produksi',
+        'channel': 'production',
+        'version_name': '1.1.0',
+        'build_number': 20,
+      },
+      currentChannel: 'staging',
+    );
+    expect(mismatched, isNull);
+
+    // Regular ticket notification preserves ticket_id routing
+    final ticketAlert = PushNotificationService.buildAlertFromNotificationJson(
+      {
+        'id': 'notif-4',
+        'type': 'reply',
+        'title': 'Balasan Baru',
+        'body': 'Operator membalas tiket Anda',
+        'ticketId': '123456789',
+      },
+      currentChannel: 'staging',
+    );
+    expect(ticketAlert, isNotNull);
+    expect(ticketAlert!.data['type'], equals('reply'));
+    expect(ticketAlert.data['ticket_id'], equals('123456789'));
+    expect(ticketAlert.data['id'], equals('notif-4'));
+  });
+
+  test('PushNotificationService routes app_update tap payload to AppUpdateService trigger without ticket navigation', () async {
+    final initialCount = AppUpdateService.notificationUpdateTrigger.value;
+
+    // Matching channel (uses FlavorConfig.releaseChannel) increments trigger
+    await PushNotificationService.handleNotificationDataForTest({
+      'type': 'app_update',
+      'channel': FlavorConfig.releaseChannel,
+      'version_name': '1.0.5',
+      'build_number': '25',
+      'id': 'notif-update-1',
+    });
+    expect(
+      AppUpdateService.notificationUpdateTrigger.value,
+      equals(initialCount + 1),
+    );
+
+    // Different channel does NOT increment trigger
+    final otherChannel =
+        FlavorConfig.releaseChannel == 'production' ? 'staging' : 'production';
+    await PushNotificationService.handleNotificationDataForTest({
+      'type': 'app_update',
+      'channel': otherChannel,
+      'version_name': '1.0.5',
+      'build_number': '25',
+      'id': 'notif-update-2',
+    });
+    expect(
+      AppUpdateService.notificationUpdateTrigger.value,
+      equals(initialCount + 1),
+    );
+  });
+
+  test('NotificationModel.safeFromJson parses app_update metadata and unknown types safely', () {
+    final model = NotificationModel.safeFromJson({
+      'id': 'n-100',
+      'title': 'Update Aplikasi v1.0.4',
+      'body': 'Perbaikan stabilitas dan notifikasi.',
+      'type': 'app_update',
+      'createdAt': '2026-11-22T11:00:00Z',
+      'isRead': false,
+      'data': {
+        'channel': 'staging',
+        'version_name': '1.0.4',
+        'build_number': '18',
+      },
+    });
+
+    expect(model.type, equals(NotificationType.appUpdate));
+    expect(model.channel, equals('staging'));
+    expect(model.versionName, equals('1.0.4'));
+    expect(model.buildNumber, equals(18));
+    expect(model.isRead, isFalse);
+
+    final unknownTypeModel = NotificationModel.safeFromJson({
+      'id': 'n-101',
+      'title': 'Lainnya',
+      'body': 'Info baru',
+      'type': 'future_unknown_type',
+      'created_at': '2026-11-22T11:00:00Z',
+      'is_read': true,
+    });
+    expect(unknownTypeModel.type, equals(NotificationType.ticket));
+    expect(unknownTypeModel.isRead, isTrue);
   });
 }
