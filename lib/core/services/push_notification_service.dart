@@ -3,13 +3,32 @@ import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:halo_apu_mobile/core/config/api_config.dart';
 import 'package:halo_apu_mobile/core/config/app_flavor.dart';
 import 'package:halo_apu_mobile/core/router/app_router.dart';
 import 'package:halo_apu_mobile/core/services/app_update_service.dart';
 import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 import 'package:halo_apu_mobile/data/api/api_client.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class NotificationDiagnosticStatus {
+  final bool permissionGranted;
+  final bool fcmReady;
+  final bool isPlaceholderConfig;
+  final bool backgroundWorkerActive;
+  final bool realtimePollerActive;
+
+  const NotificationDiagnosticStatus({
+    required this.permissionGranted,
+    required this.fcmReady,
+    required this.isPlaceholderConfig,
+    required this.backgroundWorkerActive,
+    required this.realtimePollerActive,
+  });
+}
 
 /// Top-level background message handler for Firebase Messaging
 @pragma('vm:entry-point')
@@ -18,6 +37,33 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await Firebase.initializeApp();
   } catch (_) {}
   debugPrint('FCM Background message received: ${message.messageId}');
+
+  final notifId = message.data['notification_id']?.toString().trim() ??
+      message.data['id']?.toString().trim() ??
+      message.messageId?.trim();
+  if (notifId != null && notifId.isNotEmpty) {
+    await PushNotificationService.recordSeenNotificationId(notifId);
+  }
+
+  // Hanya tampilkan notifikasi lokal untuk pesan data-only;
+  // jika message.notification != null, Android OS sudah merender banner-nya.
+  if (message.notification == null &&
+      !PushNotificationService.shouldIgnoreAppUpdatePayload(message.data)) {
+    final title = message.data['title']?.toString().trim();
+    final body =
+        (message.data['body'] ?? message.data['message'])?.toString().trim();
+    if ((title != null && title.isNotEmpty) ||
+        (body != null && body.isNotEmpty)) {
+      await PushNotificationService.showNotificationAlert(
+        title: (title != null && title.isNotEmpty) ? title : 'Halo APU',
+        body: (body != null && body.isNotEmpty)
+            ? body
+            : 'Ada pembaruan baru.',
+        data: message.data,
+        notificationKey: notifId,
+      );
+    }
+  }
 }
 
 class PushNotificationService {
@@ -39,14 +85,87 @@ class PushNotificationService {
   /// Ikon small notification: siluet putih (mipmap launcher tampil kotak putih di Android 8+).
   static const String _icon = 'ic_stat_notify';
 
+  static const MethodChannel _workerChannel =
+      MethodChannel('id.haloapu.mobile/background_worker');
+  static const String notifiedIdsPrefsKey = 'notified_notification_ids_v1';
+  static const int maxNotifiedIdsHistory = 50;
+
   static bool _isInitialized = false;
   static bool _localReady = false;
   static bool _fcmWired = false;
+  static bool _workerHandlerWired = false;
+  static bool _backgroundWorkerConfigured = false;
+  static String? _lastFcmToken;
   static Future<void>? _initFuture;
   static Timer? _pollingTimer;
   static String? _lastKnownNotifId;
   static int _notifIdCounter = DateTime.now().millisecondsSinceEpoch ~/ 1000;
   static VoidCallback? onNotificationReceived;
+
+  @visibleForTesting
+  static Future<bool> Function()? requestLocalPermissionOverride;
+
+  @visibleForTesting
+  static Future<bool?> Function()? areLocalNotificationsEnabledOverride;
+
+  @visibleForTesting
+  static bool isPlaceholderOptions({
+    required String projectId,
+    required String apiKey,
+    required String appId,
+  }) {
+    final p = projectId.trim().toLowerCase();
+    final k = apiKey.trim().toLowerCase();
+    final a = appId.trim().toLowerCase();
+    return p.isEmpty ||
+        p == 'haloapu-dev' ||
+        k.isEmpty ||
+        k.startsWith('fake_') ||
+        a.isEmpty ||
+        a.contains('123456789012');
+  }
+
+  static bool get isPlaceholderFirebaseConfig {
+    try {
+      if (Firebase.apps.isEmpty) return true;
+      final options = Firebase.app().options;
+      return isPlaceholderOptions(
+        projectId: options.projectId,
+        apiKey: options.apiKey,
+        appId: options.appId,
+      );
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<NotificationDiagnosticStatus> getDiagnosticStatus() async {
+    bool permissionGranted = (await areLocalNotificationsEnabled()) ?? false;
+    if (!permissionGranted) {
+      try {
+        final settings =
+            await FirebaseMessaging.instance.getNotificationSettings();
+        permissionGranted =
+            settings.authorizationStatus == AuthorizationStatus.authorized ||
+                settings.authorizationStatus ==
+                    AuthorizationStatus.provisional;
+      } catch (_) {}
+    }
+
+    final isPlaceholder = isPlaceholderFirebaseConfig;
+    final fcmReady = Firebase.apps.isNotEmpty &&
+        !isPlaceholder &&
+        _lastFcmToken != null &&
+        _lastFcmToken!.isNotEmpty;
+
+    return NotificationDiagnosticStatus(
+      permissionGranted: permissionGranted,
+      fcmReady: fcmReady,
+      isPlaceholderConfig: isPlaceholder,
+      backgroundWorkerActive: _backgroundWorkerConfigured,
+      realtimePollerActive: _pollingTimer != null,
+    );
+  }
 
   /// Inisialisasi Firebase Messaging dan Flutter Local Notifications
   static Future<void> init() {
@@ -192,6 +311,219 @@ class PushNotificationService {
     } catch (e) {
       debugPrint('Notification launch details error: $e');
     }
+
+    _ensureWorkerChannelHandler();
+
+    // Tap notifikasi yang dibuat oleh Native Android WorkManager saat app terminated.
+    try {
+      final workerPayload =
+          await _safeWorkerInvoke<String?>('consumeLaunchPayload');
+      if (workerPayload != null && workerPayload.isNotEmpty) {
+        Future.delayed(const Duration(milliseconds: 800), () {
+          try {
+            _handleNotificationData(
+              jsonDecode(workerPayload) as Map<String, dynamic>,
+            );
+          } catch (e) {
+            debugPrint('Error parsing worker launch payload: $e');
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Worker launch details error: $e');
+    }
+  }
+
+  static void _ensureWorkerChannelHandler() {
+    if (_workerHandlerWired) return;
+    _workerHandlerWired = true;
+    try {
+      _workerChannel.setMethodCallHandler((MethodCall call) async {
+        if (call.method == 'onNotificationTapped') {
+          final raw = call.arguments;
+          if (raw is String && raw.isNotEmpty) {
+            try {
+              final decoded = jsonDecode(raw);
+              if (decoded is Map) {
+                await _handleNotificationData(
+                  Map<String, dynamic>.from(decoded),
+                );
+              }
+            } catch (e) {
+              debugPrint('Error parsing worker tap payload: $e');
+            }
+          } else if (raw is Map) {
+            await _handleNotificationData(Map<String, dynamic>.from(raw));
+          }
+        }
+      });
+    } catch (e) {
+      _workerHandlerWired = false;
+      debugPrint('Worker channel handler error: $e');
+    }
+  }
+
+  @visibleForTesting
+  static void ensureWorkerHandlerForTest() => _ensureWorkerChannelHandler();
+
+  static Future<T?> _safeWorkerInvoke<T>(
+    String method, [
+    dynamic arguments,
+  ]) async {
+    try {
+      return await _workerChannel.invokeMethod<T>(method, arguments);
+    } on MissingPluginException {
+      return null;
+    } on PlatformException catch (e) {
+      debugPrint('Worker MethodChannel error ($method): $e');
+      return null;
+    } catch (e) {
+      debugPrint('Worker MethodChannel unexpected error ($method): $e');
+      return null;
+    }
+  }
+
+  static Future<bool> requestLocalNotificationPermission() async {
+    if (requestLocalPermissionOverride != null) {
+      return requestLocalPermissionOverride!();
+    }
+    try {
+      if (!_localReady) await _initLocal();
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      final granted = await androidPlugin?.requestNotificationsPermission();
+      return granted ?? false;
+    } catch (e) {
+      debugPrint('Local notification permission request error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool?> areLocalNotificationsEnabled() async {
+    if (areLocalNotificationsEnabledOverride != null) {
+      return areLocalNotificationsEnabledOverride!();
+    }
+    try {
+      if (!_localReady) await _initLocal();
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      return await androidPlugin?.areNotificationsEnabled();
+    } catch (e) {
+      debugPrint('Local notification status check error: $e');
+      return null;
+    }
+  }
+
+  @visibleForTesting
+  static Future<bool> hasSeenNotificationId(
+    String id, {
+    SharedPreferences? prefs,
+  }) async {
+    final normalized = id.trim();
+    if (normalized.isEmpty) return false;
+    final store = prefs ?? await SharedPreferences.getInstance();
+    final list = store.getStringList(notifiedIdsPrefsKey) ?? const <String>[];
+    return list.contains(normalized);
+  }
+
+  @visibleForTesting
+  static Future<List<String>> recordSeenNotificationId(
+    String id, {
+    SharedPreferences? prefs,
+    bool syncNative = true,
+  }) async {
+    final normalized = id.trim();
+    final store = prefs ?? await SharedPreferences.getInstance();
+    final current = List<String>.from(
+      store.getStringList(notifiedIdsPrefsKey) ?? const <String>[],
+    );
+    if (normalized.isEmpty) return current;
+
+    current.remove(normalized);
+    current.add(normalized);
+    while (current.length > maxNotifiedIdsHistory) {
+      current.removeAt(0);
+    }
+    await store.setStringList(notifiedIdsPrefsKey, current);
+
+    if (syncNative) {
+      unawaited(_safeWorkerInvoke<bool>('markNotificationSeen', {'id': normalized}));
+    }
+    return current;
+  }
+
+  @visibleForTesting
+  static Future<List<String>> getSeenNotificationIds({
+    SharedPreferences? prefs,
+  }) async {
+    final store = prefs ?? await SharedPreferences.getInstance();
+    final local = List<String>.from(
+      store.getStringList(notifiedIdsPrefsKey) ?? const <String>[],
+    );
+    final nativeIds =
+        await _safeWorkerInvoke<List<dynamic>>('getSeenNotificationIds');
+    if (nativeIds != null && nativeIds.isNotEmpty) {
+      for (final raw in nativeIds) {
+        final item = raw?.toString().trim() ?? '';
+        if (item.isEmpty) continue;
+        local.remove(item);
+        local.add(item);
+      }
+      while (local.length > maxNotifiedIdsHistory) {
+        local.removeAt(0);
+      }
+      await store.setStringList(notifiedIdsPrefsKey, local);
+    }
+    return local;
+  }
+
+  static Future<void> clearSeenNotificationIds({
+    SharedPreferences? prefs,
+  }) async {
+    try {
+      final store = prefs ?? await SharedPreferences.getInstance();
+      await store.remove(notifiedIdsPrefsKey);
+    } catch (_) {}
+  }
+
+  static Future<bool> configureBackgroundWorker({
+    bool? baselineSet,
+  }) async {
+    try {
+      final authToken = await SafeSecureStorage.read('auth_token');
+      if (authToken == null || authToken.trim().isEmpty) {
+        return false;
+      }
+      final seenIds = await getSeenNotificationIds();
+      final result = await _safeWorkerInvoke<bool>('configureWorker', {
+        'authToken': authToken,
+        'baseUrl': ApiConfig.baseUrl,
+        'releaseChannel': FlavorConfig.releaseChannel,
+        'seenIds': seenIds,
+        'baselineSet': baselineSet ?? _baselineSet,
+      });
+      if (result == true) {
+        _backgroundWorkerConfigured = true;
+      }
+      return result == true;
+    } catch (e) {
+      debugPrint('Error configuring background worker: $e');
+      return false;
+    }
+  }
+
+  static Future<void> onAppPaused() async {
+    try {
+      final authToken = await SafeSecureStorage.read('auth_token');
+      if (authToken == null || authToken.trim().isEmpty) return;
+      await _safeWorkerInvoke<bool>('scheduleQuickCheck');
+    } catch (_) {}
+  }
+
+  static Future<void> openBatteryOptimizationSettings() async {
+    await _safeWorkerInvoke<bool>('openBatteryOptimizationSettings');
   }
 
   static int _lastUnreadCount = 0;
@@ -200,6 +532,7 @@ class PushNotificationService {
 
   /// Memulai Real-time Poller untuk memeriksa notifikasi baru secara instan
   static void startRealtimePoller() {
+    unawaited(configureBackgroundWorker());
     // Sudah berjalan: jangan re-baseline (bisa melewatkan notif yang baru masuk).
     if (_pollingTimer != null) return;
 
@@ -217,6 +550,10 @@ class PushNotificationService {
     _lastUnreadCount = 0;
     _baselineSet = false;
     _lastKnownNotifId = null;
+    _lastFcmToken = null;
+    _backgroundWorkerConfigured = false;
+    unawaited(clearSeenNotificationIds());
+    unawaited(_safeWorkerInvoke<bool>('clearWorker'));
   }
 
   /// Memeriksa notifikasi baru secara efisien dan membunyikan alert lokal jika ada pembaruan status
@@ -237,6 +574,30 @@ class PushNotificationService {
       if (!_baselineSet) {
         _baselineSet = true;
         _lastUnreadCount = currentUnread;
+        if (currentUnread > 0) {
+          try {
+            final seedRes = await apiClient.dio.get(
+              '/notifications',
+              queryParameters: {'page': 1, 'per_page': 5},
+            );
+            if (seedRes.statusCode == 200) {
+              final List<dynamic> seedList = seedRes.data['data'] ?? [];
+              for (final rawItem in seedList.reversed) {
+                if (rawItem is Map) {
+                  final seedId = rawItem['id']?.toString().trim();
+                  if (seedId != null && seedId.isNotEmpty) {
+                    await recordSeenNotificationId(seedId, syncNative: false);
+                  }
+                }
+              }
+              if (seedList.isNotEmpty && seedList.first is Map) {
+                _lastKnownNotifId =
+                    (seedList.first as Map)['id']?.toString().trim();
+              }
+            }
+          } catch (_) {}
+        }
+        unawaited(configureBackgroundWorker(baselineSet: true));
         return;
       }
 
@@ -254,16 +615,21 @@ class PushNotificationService {
           final List<dynamic> list = notifListResponse.data['data'] ?? [];
           if (list.isNotEmpty && list.first is Map) {
             final latest = Map<String, dynamic>.from(list.first as Map);
-            final id = latest['id']?.toString();
+            final id = latest['id']?.toString().trim();
 
-            if (id != null && id != _lastKnownNotifId) {
+            if (id != null &&
+                id.isNotEmpty &&
+                id != _lastKnownNotifId &&
+                !await hasSeenNotificationId(id)) {
               _lastKnownNotifId = id;
+              await recordSeenNotificationId(id);
               final alert = buildAlertFromNotificationJson(latest);
               if (alert != null) {
                 await showNotificationAlert(
                   title: alert.title,
                   body: alert.body,
                   data: alert.data,
+                  notificationKey: id,
                 );
               }
             }
@@ -284,14 +650,22 @@ class PushNotificationService {
     required String title,
     required String body,
     Map<String, dynamic>? data,
+    String? notificationKey,
   }) async {
-    // WAJIB menunggu init: show sebelum initialize = notifikasi hilang senyap.
-    await init();
+    // WAJIB menunggu inisialisasi plugin lokal; jangan jalankan poller di background isolate.
     if (!_localReady) await _initLocal();
     if (!_localReady) {
       debugPrint('Skip local notification: local notifications not ready');
       return;
     }
+
+    final resolvedKey = (notificationKey ??
+            data?['notification_id']?.toString() ??
+            data?['id']?.toString())
+        ?.trim();
+    final String? notifTag = (resolvedKey != null && resolvedKey.isNotEmpty)
+        ? 'haloapu_notif_$resolvedKey'
+        : null;
 
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       _channel.id,
@@ -305,6 +679,7 @@ class PushNotificationService {
       visibility: NotificationVisibility.public,
       ticker: title,
       category: AndroidNotificationCategory.message,
+      tag: notifTag,
     );
 
     const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
@@ -318,9 +693,10 @@ class PushNotificationService {
       iOS: iosDetails,
     );
 
-    // Id unik per notifikasi; detik saja membuat 2 notifikasi dalam detik
-    // yang sama saling menimpa.
-    final int notifId = _notifIdCounter++;
+    // Deterministic ID per notification_id agar balapan FCM/Worker menimpa kartu yang sama.
+    final int notifId = (resolvedKey != null && resolvedKey.isNotEmpty)
+        ? resolvedKey.hashCode
+        : _notifIdCounter++;
     try {
       await _localNotifications.show(
         id: notifId,
@@ -457,6 +833,14 @@ class PushNotificationService {
     final data = message.data;
     if (shouldIgnoreAppUpdatePayload(data)) return;
 
+    final notifId = data['notification_id']?.toString().trim() ??
+        data['id']?.toString().trim() ??
+        message.messageId?.trim();
+    if (notifId != null && notifId.isNotEmpty) {
+      if (await hasSeenNotificationId(notifId)) return;
+      await recordSeenNotificationId(notifId);
+    }
+
     final title = notification?.title ?? data['title'] ?? 'Halo APU';
     final body = notification?.body ?? data['body'] ?? data['message'] ?? 'Ada pembaruan tiket baru';
 
@@ -464,6 +848,7 @@ class PushNotificationService {
       title: title,
       body: body,
       data: data,
+      notificationKey: notifId,
     );
   }
 
@@ -477,12 +862,15 @@ class PushNotificationService {
         return;
       }
 
+      unawaited(configureBackgroundWorker());
+
       final fcmToken = token ?? await FirebaseMessaging.instance.getToken();
       if (fcmToken == null || fcmToken.isEmpty) {
         debugPrint('Skip FCM sync: FCM token is null or empty');
         return;
       }
 
+      _lastFcmToken = fcmToken;
       debugPrint('Sending FCM token to backend: $fcmToken');
       final apiClient = ApiClient();
       final response = await apiClient.dio.post(

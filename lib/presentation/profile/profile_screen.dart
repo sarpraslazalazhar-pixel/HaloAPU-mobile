@@ -13,6 +13,7 @@ import '../widgets/app_update_dialog.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/entrance_animation.dart';
 import '../widgets/app_avatar.dart';
+import '../widgets/notification_status_sheet.dart';
 import 'providers/user_profile_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
@@ -130,6 +131,13 @@ class ProfileScreen extends ConsumerWidget {
                             title: 'Hubungi Admin',
                             subtitle: 'Kontak WhatsApp, email, dan pesan tiket',
                             onTap: () => context.push('/contact-admin'),
+                          ),
+                          _MenuItem(
+                            icon: Icons.notifications_active_outlined,
+                            color: AppTheme.oceanWater,
+                            title: 'Status & Pengaturan Notifikasi',
+                            subtitle: 'Izin notifikasi, layanan latar belakang, & uji notif',
+                            onTap: () => NotificationStatusSheet.show(context),
                           ),
                           _MenuItem(
                             icon: Icons.system_update_rounded,

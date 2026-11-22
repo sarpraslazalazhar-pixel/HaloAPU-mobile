@@ -70,21 +70,31 @@ class HaloApuApp extends ConsumerStatefulWidget {
   ConsumerState<HaloApuApp> createState() => _HaloApuAppState();
 }
 
-class _HaloApuAppState extends ConsumerState<HaloApuApp> {
+class _HaloApuAppState extends ConsumerState<HaloApuApp>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     SessionManager.instance.onInvalidateProviders = _invalidateAllProviders;
     AppUpdateService.notificationUpdateTrigger.addListener(_handleUpdateNotificationTrigger);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     AppUpdateService.notificationUpdateTrigger.removeListener(_handleUpdateNotificationTrigger);
     if (SessionManager.instance.onInvalidateProviders == _invalidateAllProviders) {
       SessionManager.instance.onInvalidateProviders = null;
     }
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      PushNotificationService.onAppPaused();
+    }
   }
 
   void _handleUpdateNotificationTrigger() {

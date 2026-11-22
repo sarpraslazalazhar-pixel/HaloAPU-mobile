@@ -15,6 +15,7 @@ import '../widgets/app_update_dialog.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/entrance_animation.dart';
 import '../widgets/app_avatar.dart';
+import '../widgets/notification_status_sheet.dart';
 
 class AdminSettingsScreen extends ConsumerWidget {
   const AdminSettingsScreen({super.key});
@@ -131,6 +132,14 @@ class AdminSettingsScreen extends ConsumerWidget {
                         mode: LaunchMode.externalApplication,
                       );
                     },
+                  ),
+                  const Divider(height: 1, indent: 60, endIndent: 16),
+                  _SettingsTile(
+                    icon: Icons.notifications_active_outlined,
+                    color: AppTheme.oceanWater,
+                    title: 'Status & Pengaturan Notifikasi',
+                    subtitle: 'Izin notifikasi, layanan latar belakang, & uji notif',
+                    onTap: () => NotificationStatusSheet.show(context),
                   ),
                   const Divider(height: 1, indent: 60, endIndent: 16),
                   FutureBuilder<String>(

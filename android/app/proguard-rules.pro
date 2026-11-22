@@ -86,3 +86,7 @@
 -dontwarn com.google.android.play.core.tasks.OnFailureListener
 -dontwarn com.google.android.play.core.tasks.OnSuccessListener
 -dontwarn com.google.android.play.core.tasks.Task
+
+# Native WorkManager & Background Worker
+-keep class id.haloapu.mobile.** { *; }
+-keep class androidx.work.** { *; }
