@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import '../api/api_client.dart';
-import '../../core/services/attachment_service.dart';
 import '../../core/storage/secure_storage_helper.dart';
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
@@ -106,22 +105,20 @@ class ProfileRepository {
     }
   }
 
-  Future<Map<String, dynamic>> deleteAccount() async {
+  Future<Map<String, dynamic>> deactivateAccount() async {
     try {
-      final response = await _apiClient.dio.delete('/user');
+      final response = await _apiClient.dio.post('/user/deactivate');
       if (response.statusCode == 200) {
-        await SafeSecureStorage.deleteAll();
-        AttachmentService.clearTokenCache();
         return {
           'success': true,
-          'message': response.data?['message'] ?? 'Akun berhasil dihapus permanen'
+          'message': response.data?['message'] ?? 'Akun berhasil dinonaktifkan'
         };
       }
-      return {'success': false, 'message': 'Gagal menghapus akun'};
+      return {'success': false, 'message': 'Gagal menonaktifkan akun'};
     } on DioException catch (e) {
-      return {'success': false, 'message': e.error?.toString() ?? 'Kesalahan saat menghapus akun'};
+      return {'success': false, 'message': e.error?.toString() ?? 'Kesalahan saat menonaktifkan akun'};
     } catch (e) {
-      return {'success': false, 'message': 'Gagal menghapus akun: $e'};
+      return {'success': false, 'message': 'Gagal menonaktifkan akun: $e'};
     }
   }
 }

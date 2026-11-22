@@ -118,8 +118,8 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
     return result;
   }
 
-  Future<Map<String, dynamic>> deleteAccount() async {
-    final result = await _profileRepo.deleteAccount();
+  Future<Map<String, dynamic>> deactivateAccount() async {
+    final result = await _profileRepo.deactivateAccount();
     if (result['success']) {
       state = _defaultUserProfile;
     }
