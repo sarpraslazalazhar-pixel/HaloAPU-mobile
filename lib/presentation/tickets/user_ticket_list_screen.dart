@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:halo_apu_mobile/core/services/session_manager.dart';
+import 'package:halo_apu_mobile/presentation/widgets/app_error_view.dart';
 import 'package:halo_apu_mobile/presentation/widgets/offline_banner.dart';
 import 'package:halo_apu_mobile/presentation/widgets/shimmer.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
@@ -161,7 +163,12 @@ class _UserTicketListScreenState extends ConsumerState<UserTicketListScreen> {
           Expanded(
             child: ticketState.when(
               loading: () => const TicketListSkeleton(count: 4, showHeader: false),
-              error: (error, stack) => Center(child: Text('Error: $error')),
+              error: (error, stack) => AppErrorView(
+                error: error,
+                fullPage: false,
+                onRetry: () => ref.read(userTicketProvider.notifier).refresh(),
+                onLogin: () => SessionManager.instance.forceReLogin(),
+              ),
               data: (tickets) {
                 final filteredTickets = _getFilteredTickets(tickets);
                 final hasMore = ref.read(userTicketProvider.notifier).hasMore;

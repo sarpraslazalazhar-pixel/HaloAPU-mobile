@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/core/services/auth_service.dart';
 import 'package:halo_apu_mobile/core/services/biometric_service.dart';
+import 'package:halo_apu_mobile/core/services/session_manager.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:halo_apu_mobile/core/services/push_notification_service.dart';
@@ -12,6 +14,8 @@ import 'package:halo_apu_mobile/data/repositories/dashboard_repository.dart';
 import 'package:halo_apu_mobile/presentation/tickets/providers/admin_ticket_provider.dart';
 import 'package:halo_apu_mobile/presentation/tickets/providers/user_ticket_provider.dart';
 import 'package:halo_apu_mobile/presentation/dashboard/providers/monitor_provider.dart';
+import 'package:halo_apu_mobile/presentation/dashboard/providers/csat_provider.dart';
+import 'package:halo_apu_mobile/presentation/ratings/providers/rating_provider.dart';
 import 'package:halo_apu_mobile/core/config/app_flavor.dart';
 import 'package:halo_apu_mobile/core/services/cache_service.dart';
 
@@ -33,14 +37,123 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isLoadingBiometric = false;
 
   bool get _isLoading => _isLoadingUser || _isLoadingAdmin || _isLoadingBiometric;
+  bool get _isRateLimited => _retryAfterSeconds > 0;
+  bool get _isButtonDisabled => _isLoading || _isRateLimited;
+
   bool _biometricVisible = false;
   Map<String, String>? _savedBiometricUser;
   int _biometricFailures = 0;
 
+  String? _sessionBannerMessage;
+  String? _errorBannerMessage;
+  int _retryAfterSeconds = 0;
+  Timer? _retryTimer;
+
   @override
   void initState() {
     super.initState();
+    _sessionBannerMessage = SessionManager.instance.consumeSessionMessage();
     _initBiometric();
+  }
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _startRateLimitCountdown(int seconds) {
+    _retryTimer?.cancel();
+    final initial = seconds < 1 ? 1 : seconds;
+    setState(() {
+      _retryAfterSeconds = initial;
+    });
+    _retryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_retryAfterSeconds <= 1) {
+        timer.cancel();
+        setState(() {
+          _retryAfterSeconds = 0;
+        });
+      } else {
+        setState(() {
+          _retryAfterSeconds--;
+        });
+      }
+    });
+  }
+
+  Future<void> _onLoginSucceeded(bool isAdmin) async {
+    _retryTimer?.cancel();
+    setState(() {
+      _retryAfterSeconds = 0;
+      _errorBannerMessage = null;
+      _sessionBannerMessage = null;
+    });
+
+    await CacheService.clear();
+    if (!mounted) return;
+
+    ref.invalidate(adminTicketProvider);
+    ref.invalidate(userTicketProvider);
+    ref.invalidate(userProfileProvider);
+    ref.invalidate(adminProfileProvider);
+    ref.invalidate(notificationProvider);
+    ref.invalidate(dashboardRepositoryProvider);
+    ref.invalidate(monitorProvider);
+    ref.invalidate(csatProvider);
+    ref.invalidate(ratingProvider);
+    ref.invalidate(adminRatingProvider);
+
+    // Sync FCM Token with backend
+    PushNotificationService.syncFcmTokenWithBackend();
+    if (!mounted) return;
+
+    if (isAdmin) {
+      context.go('/dashboard/admin');
+    } else {
+      context.go('/dashboard/user');
+    }
+  }
+
+  Future<void> _handleLoginError(
+    Map<String, dynamic> result, {
+    bool fromBiometric = false,
+  }) async {
+    final statusCode = result['statusCode'] as int?;
+    final errorCode = result['error_code']?.toString();
+    String message = result['message']?.toString() ??
+        (fromBiometric
+            ? 'Login biometrik gagal. Silakan masukkan password.'
+            : 'Login gagal. Periksa kembali ID dan kata sandi Anda.');
+
+    if (fromBiometric && (statusCode == 401 || statusCode == 403)) {
+      await _biometricService.clearBiometricSession();
+      if (!mounted) return;
+      setState(() {
+        _biometricVisible = false;
+        _savedBiometricUser = null;
+      });
+      if (statusCode == 401) {
+        message =
+            'Kredensial biometrik sudah tidak valid atau kata sandi telah diubah. Silakan login manual dengan password.';
+      }
+    }
+
+    if (statusCode == 429 || errorCode == 'RATE_LIMITED') {
+      final retryAfter = (result['retry_after'] as num?)?.toInt() ?? 60;
+      _startRateLimitCountdown(retryAfter);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _errorBannerMessage = message;
+    });
   }
 
   Future<void> _initBiometric() async {
@@ -57,26 +170,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleBiometricLogin() async {
-    if (_isLoading) return;
+    if (_isButtonDisabled) return;
     final ok = await _biometricService.authenticate();
     if (!mounted) return;
 
     if (!ok) {
-      setState(() => _biometricFailures++);
-      if (_biometricFailures >= 3) {
-        setState(() => _biometricVisible = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal 3 kali. Silakan login dengan password.')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Verifikasi biometrik gagal')),
-        );
-      }
+      setState(() {
+        _biometricFailures++;
+        if (_biometricFailures >= 3) {
+          _biometricVisible = false;
+          _errorBannerMessage = 'Gagal 3 kali. Silakan login dengan password.';
+        } else {
+          _errorBannerMessage = 'Verifikasi biometrik gagal.';
+        }
+      });
       return;
     }
 
-    setState(() => _isLoadingBiometric = true);
+    setState(() {
+      _isLoadingBiometric = true;
+      _errorBannerMessage = null;
+    });
 
     final creds = await _biometricService.getBiometricCredentials();
     if (!mounted) return;
@@ -85,10 +199,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() {
         _isLoadingBiometric = false;
         _biometricVisible = false;
+        _savedBiometricUser = null;
+        _errorBannerMessage = 'Kredensial biometrik tidak ditemukan. Silakan login dengan password.';
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kredensial biometrik tidak ditemukan. Silakan login dengan password')),
-      );
       return;
     }
 
@@ -99,31 +212,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _isLoadingBiometric = false);
 
     if (result['success'] == true) {
-      await CacheService.clear();
-      ref.invalidate(adminTicketProvider);
-      ref.invalidate(userTicketProvider);
-      ref.invalidate(userProfileProvider);
-      ref.invalidate(adminProfileProvider);
-      ref.invalidate(notificationProvider);
-      ref.invalidate(dashboardRepositoryProvider);
-      ref.invalidate(monitorProvider);
-
-      // Sync FCM token
-      PushNotificationService.syncFcmTokenWithBackend();
-      if (!mounted) return;
-
-      if (isAdmin) {
-        context.go('/dashboard/admin');
-      } else {
-        context.go('/dashboard/user');
-      }
+      await _onLoginSucceeded(isAdmin);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? 'Login biometrik gagal. Silakan masukkan password.'),
-          backgroundColor: AppTheme.danger,
-        ),
-      );
+      await _handleLoginError(result, fromBiometric: true);
     }
   }
 
@@ -136,17 +227,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _performLogin(bool isAdmin) async {
+    if (_isButtonDisabled) return;
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email/Username dan Password tidak boleh kosong')),
-      );
+      setState(() {
+        _errorBannerMessage = 'Email/Username dan Password tidak boleh kosong';
+      });
       return;
     }
 
     setState(() {
+      _errorBannerMessage = null;
       if (isAdmin) {
         _isLoadingAdmin = true;
       } else {
@@ -156,39 +249,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     final result = await _authService.login(email, password, isAdmin);
 
-    if (mounted) {
-      setState(() {
-        _isLoadingUser = false;
-        _isLoadingAdmin = false;
-      });
+    if (!mounted) return;
+    setState(() {
+      _isLoadingUser = false;
+      _isLoadingAdmin = false;
+    });
 
-      if (result['success']) {
-        await CacheService.clear();
-        ref.invalidate(adminTicketProvider);
-        ref.invalidate(userTicketProvider);
-        ref.invalidate(userProfileProvider);
-        ref.invalidate(adminProfileProvider);
-        ref.invalidate(notificationProvider);
-        ref.invalidate(dashboardRepositoryProvider);
-        ref.invalidate(monitorProvider);
-
-        // Sync FCM Token with backend
-        PushNotificationService.syncFcmTokenWithBackend();
-        if (!mounted) return;
-
-        if (isAdmin) {
-          context.go('/dashboard/admin');
-        } else {
-          context.go('/dashboard/user');
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    if (result['success'] == true) {
+      await _onLoginSucceeded(isAdmin);
+    } else {
+      await _handleLoginError(result);
     }
   }
 
@@ -254,6 +324,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
+
+                      // Session Expired / Re-login Info Banner
+                      if (_sessionBannerMessage != null) ...[
+                        _buildSessionInfoBanner(_sessionBannerMessage!),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // Inline Error & Rate-limit Countdown Banner
+                      if (_errorBannerMessage != null || _isRateLimited) ...[
+                        _buildErrorBanner(),
+                        const SizedBox(height: 16),
+                      ],
 
                       // Quick Biometric Login Card
                       if (_biometricVisible && _savedBiometricUser != null) ...[
@@ -333,7 +415,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               const SizedBox(height: 16),
                               ElevatedButton.icon(
-                                onPressed: _isLoading ? null : _handleBiometricLogin,
+                                onPressed: _isButtonDisabled ? null : _handleBiometricLogin,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppTheme.brilliantBlue,
                                   foregroundColor: Colors.white,
@@ -484,7 +566,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                                 // Login Button
                                 ElevatedButton(
-                                  onPressed: _isLoading ? null : _handleLoginUser,
+                                  onPressed: _isButtonDisabled ? null : _handleLoginUser,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppTheme.oceanWater,
                                     foregroundColor: Colors.white,
@@ -497,12 +579,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ),
                                   child: _isLoadingUser
                                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                      : const Row(
+                                      : Row(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            Text('Login sebagai User', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                                            SizedBox(width: 8),
-                                            Icon(Icons.arrow_forward),
+                                            Text(
+                                              _isRateLimited
+                                                  ? 'Coba lagi dalam ${_retryAfterSeconds}d'
+                                                  : 'Login sebagai User',
+                                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                            ),
+                                            if (!_isRateLimited) ...[
+                                              const SizedBox(width: 8),
+                                              const Icon(Icons.arrow_forward),
+                                            ],
                                           ],
                                         ),
                                 ),
@@ -521,7 +610,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 const SizedBox(height: 16),
 
                                 OutlinedButton(
-                                  onPressed: _isLoading ? null : _handleLoginAdmin,
+                                  onPressed: _isButtonDisabled ? null : _handleLoginAdmin,
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: AppTheme.oceanWater,
                                     side: BorderSide(color: AppTheme.oceanWater.withValues(alpha: 0.2), width: 2),
@@ -532,12 +621,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ),
                                   child: _isLoadingAdmin
                                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: AppTheme.oceanWater, strokeWidth: 2))
-                                      : const Row(
+                                      : Row(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            Text('Login sebagai Admin', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                                            SizedBox(width: 8),
-                                            Icon(Icons.support_agent),
+                                            Text(
+                                              _isRateLimited
+                                                  ? 'Coba lagi dalam ${_retryAfterSeconds}d'
+                                                  : 'Login sebagai Admin',
+                                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                            ),
+                                            if (!_isRateLimited) ...[
+                                              const SizedBox(width: 8),
+                                              const Icon(Icons.support_agent),
+                                            ],
                                           ],
                                         ),
                                 ),
@@ -573,6 +669,107 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSessionInfoBanner(String message) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1),
+            child: Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF92400E),
+                height: 1.4,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () => setState(() => _sessionBannerMessage = null),
+            icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFFB45309)),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            tooltip: 'Tutup',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner() {
+    final text = _errorBannerMessage ??
+        'Terlalu banyak percobaan login. Silakan coba lagi dalam $_retryAfterSeconds detik.';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(
+              _isRateLimited ? Icons.timer_outlined : Icons.error_outline_rounded,
+              color: AppTheme.danger,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF991B1B),
+                    height: 1.4,
+                  ),
+                ),
+                if (_isRateLimited) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tombol login aktif kembali dalam $_retryAfterSeconds detik.',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFFB91C1C),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (!_isRateLimited)
+            IconButton(
+              onPressed: () => setState(() => _errorBannerMessage = null),
+              icon: const Icon(Icons.close_rounded, size: 18, color: AppTheme.danger),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              tooltip: 'Tutup',
+            ),
+        ],
       ),
     );
   }

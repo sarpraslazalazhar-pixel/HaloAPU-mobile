@@ -8,7 +8,9 @@ import '../tickets/providers/admin_ticket_provider.dart';
 import '../widgets/entrance_animation.dart';
 import '../widgets/shimmer.dart';
 import '../widgets/pagination_footer.dart';
+import '../widgets/app_error_view.dart';
 import 'package:halo_apu_mobile/core/services/push_notification_service.dart';
+import 'package:halo_apu_mobile/core/services/session_manager.dart';
 import 'package:halo_apu_mobile/core/services/ticket_service.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
 import 'providers/notification_provider.dart';
@@ -212,7 +214,12 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
       ),
       body: notifState.when(
         loading: () => const _NotificationShimmerList(),
-        error: (error, stack) => Center(child: Text('Error: $error')),
+        error: (error, stack) => AppErrorView(
+          error: error,
+          fullPage: false,
+          onRetry: () => ref.read(notificationProvider.notifier).refresh(),
+          onLogin: () => SessionManager.instance.forceReLogin(),
+        ),
         data: (list) => RefreshIndicator(
           onRefresh: () => ref.read(notificationProvider.notifier).refresh(),
           color: AppTheme.oceanWater,

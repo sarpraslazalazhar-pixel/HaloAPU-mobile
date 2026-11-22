@@ -6,6 +6,7 @@ import 'package:halo_apu_mobile/core/config/app_flavor.dart';
 import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/core/services/attachment_service.dart';
+import 'package:halo_apu_mobile/core/services/session_manager.dart';
 import 'package:halo_apu_mobile/data/repositories/profile_repository.dart';
 import 'package:halo_apu_mobile/presentation/profile/providers/user_profile_provider.dart';
 
@@ -135,17 +136,22 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           debugPrint('Profile fetch timeout/error during splash: $e');
         }
 
-        if (profileRes != null && profileRes['success'] == true) {
-          if (role == 'admin') {
-            ref.read(adminProfileProvider.notifier).refresh();
-          } else {
-            ref.read(userProfileProvider.notifier).refresh();
-          }
-        } else if (profileRes != null && profileRes['statusCode'] == 401) {
+        if (profileRes != null && profileRes['statusCode'] == 401) {
           // Token kadaluarsa secara eksplisit -> bersihkan sesi aktif & arahkan ke login
-          await SafeSecureStorage.clearSession();
-          AttachmentService.clearTokenCache();
+          await SessionManager.instance.handleSessionExpired(
+            reason: profileRes['message']?.toString(),
+            navigate: false,
+          );
           _targetRoute = '/login';
+        } else {
+          SessionManager.instance.notifyLoginSuccess();
+          if (profileRes != null && profileRes['success'] == true) {
+            if (role == 'admin') {
+              ref.read(adminProfileProvider.notifier).refresh();
+            } else {
+              ref.read(userProfileProvider.notifier).refresh();
+            }
+          }
         }
       } else {
         _targetRoute = '/login';

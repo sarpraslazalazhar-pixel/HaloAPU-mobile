@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../storage/secure_storage_helper.dart';
@@ -6,11 +8,23 @@ import 'package:path_provider/path_provider.dart';
 
 import '../config/api_config.dart';
 import '../theme/app_theme.dart';
+import 'session_manager.dart';
 
 class AttachmentService {
   AttachmentService._();
 
   static String? _cachedToken;
+  static final Set<String> _downloadedTempFiles = <String>{};
+  static Future<void>? _pendingTempCleanup;
+
+  @visibleForTesting
+  static void trackTempFileForTesting(String path) {
+    _downloadedTempFiles.add(path);
+  }
+
+  @visibleForTesting
+  static Set<String> get trackedTempFilesForTesting =>
+      Set<String>.unmodifiable(_downloadedTempFiles);
 
   /// Mengambil token autentikasi yang tersimpan di memori secara sinkron jika tersedia.
   static String? get cachedToken => _cachedToken;
@@ -33,9 +47,40 @@ class AttachmentService {
     return _cachedToken;
   }
 
-  /// Menghapus cache token di memori.
+  /// Menghapus cache token di memori sekaligus file lampiran sementara (best-effort).
   static void clearTokenCache() {
     _cachedToken = null;
+    unawaited(clearDownloadedTempFiles());
+  }
+
+  /// Menghapus semua file lampiran sementara yang pernah diunduh di sesi ini.
+  static Future<void> clearDownloadedTempFiles() async {
+    if (_pendingTempCleanup != null) {
+      await _pendingTempCleanup;
+    }
+    if (_downloadedTempFiles.isEmpty) return;
+
+    final paths = _downloadedTempFiles.toList();
+    _downloadedTempFiles.clear();
+
+    final future = () async {
+      for (final path in paths) {
+        try {
+          final file = File(path);
+          if (await file.exists()) {
+            await file.delete();
+          }
+        } catch (_) {}
+      }
+    }();
+    _pendingTempCleanup = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_pendingTempCleanup, future)) {
+        _pendingTempCleanup = null;
+      }
+    }
   }
 
   /// Membersihkan prefix path 'storage/', 'public/', dan '/' berulang.
@@ -280,10 +325,12 @@ class AttachmentService {
       );
     }
 
+    String? token;
     try {
-      final token = await getAuthToken();
+      token = await getAuthToken();
       final tempDir = await getTemporaryDirectory();
       final savePath = '${tempDir.path}/$safeFileName';
+      _downloadedTempFiles.add(savePath);
 
       final dio = Dio();
       await dio.download(
@@ -339,6 +386,26 @@ class AttachmentService {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Unduhan dibatalkan'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+      if (e.response?.statusCode == 401) {
+        await SessionManager.handleHttpUnauthorized(
+          path: e.requestOptions.path,
+          authorizationHeader: e.requestOptions.headers['Authorization'] ??
+              (token != null && token.isNotEmpty ? 'Bearer $token' : null),
+          responseData: e.response?.data,
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                SessionManager.extractUnauthorizedMessage(e.response?.data),
+              ),
+              backgroundColor: AppTheme.danger,
               behavior: SnackBarBehavior.floating,
             ),
           );

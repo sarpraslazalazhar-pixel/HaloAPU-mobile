@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:halo_apu_mobile/core/services/session_manager.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/domain/models/rating_model.dart';
+import '../widgets/app_error_view.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/entrance_animation.dart';
 import '../widgets/shimmer.dart';
@@ -70,52 +72,16 @@ class _RatingHistoryScreenState extends ConsumerState<RatingHistoryScreen> {
       ),
       body: ratingsState.when(
         loading: () => const _RatingShimmerList(),
-        error: (error, stack) => RefreshIndicator(
-          onRefresh: () async {
+        error: (error, stack) => AppErrorView(
+          error: error,
+          fullPage: false,
+          onRetry: () {
             ref.read(csatProvider.notifier).fetchPendingCsat();
-            return ref
+            ref
                 .read((widget.isAdmin ? adminRatingProvider : ratingProvider).notifier)
                 .refresh();
           },
-          color: AppTheme.oceanWater,
-          child: LayoutBuilder(
-            builder: (context, constraints) => SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: SizedBox(
-                height: constraints.maxHeight,
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.wifi_off_rounded, size: 64, color: Colors.grey.shade400),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Belum dapat terhubung',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Tarik ke bawah atau tekan coba lagi untuk memuat penilaian.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          ref.read(csatProvider.notifier).fetchPendingCsat();
-                          ref
-                              .read((widget.isAdmin ? adminRatingProvider : ratingProvider).notifier)
-                              .refresh();
-                        },
-                        icon: const Icon(Icons.refresh, size: 18),
-                        label: const Text('Coba Lagi'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
+          onLogin: () => SessionManager.instance.forceReLogin(),
         ),
         data: (ratings) {
           final pendingList = csatState.pendingCsats.valueOrNull ?? [];

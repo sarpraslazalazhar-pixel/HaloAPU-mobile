@@ -128,6 +128,7 @@ class SafeSecureStorage {
       delete('auth_token', timeout: timeout),
       delete('user_data', timeout: timeout),
       delete('user_role', timeout: timeout),
+      delete('dashboard_cache', timeout: timeout),
     ]);
   }
 

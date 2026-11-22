@@ -12,6 +12,7 @@ import 'package:halo_apu_mobile/presentation/widgets/entrance_animation.dart';
 import 'package:halo_apu_mobile/presentation/widgets/shimmer.dart';
 import 'package:halo_apu_mobile/presentation/widgets/app_avatar.dart';
 import 'package:halo_apu_mobile/presentation/widgets/app_permission_dialog.dart';
+import 'package:halo_apu_mobile/presentation/widgets/app_update_dialog.dart';
 import 'package:halo_apu_mobile/core/services/push_notification_service.dart';
 import 'package:halo_apu_mobile/data/repositories/dashboard_repository.dart';
 import 'package:halo_apu_mobile/presentation/dashboard/providers/csat_provider.dart';
@@ -43,6 +44,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AppPermissionDialog.showIfRequired(context);
       PushNotificationService.syncFcmTokenWithBackend();
+      if (mounted) {
+        AppUpdateDialog.checkAndShow(context);
+      }
     });
   }
 

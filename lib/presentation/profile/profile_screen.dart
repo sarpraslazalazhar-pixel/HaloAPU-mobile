@@ -2,11 +2,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/config/app_flavor.dart';
 import '../../core/storage/secure_storage_helper.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/app_update_service.dart';
 import '../../core/services/biometric_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../domain/models/user_profile_model.dart';
+import '../widgets/app_update_dialog.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/entrance_animation.dart';
 import '../widgets/app_avatar.dart';
@@ -107,23 +110,40 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
                 EntranceAnimation(
                   delay: const Duration(milliseconds: 300),
-                  child: _MenuSection(
-                    items: [
-                      _MenuItem(
-                        icon: Icons.help_outline_rounded,
-                        color: AppTheme.oceanWater,
-                        title: 'Pusat Bantuan & FAQ',
-                        subtitle: 'Panduan penggunaan dan tanya jawab',
-                        onTap: () => context.push('/help'),
-                      ),
-                      _MenuItem(
-                        icon: Icons.support_agent_rounded,
-                        color: AppTheme.brilliantBlue,
-                        title: 'Hubungi Admin',
-                        subtitle: 'Kontak WhatsApp, email, dan pesan tiket',
-                        onTap: () => context.push('/contact-admin'),
-                      ),
-                    ],
+                  child: FutureBuilder<String>(
+                    future: AppUpdateService.instance.getFormattedCurrentVersion(),
+                    initialData: 'v${FlavorConfig.appVersion}',
+                    builder: (context, snapshot) {
+                      final versionLabel = snapshot.data ?? 'v${FlavorConfig.appVersion}';
+                      return _MenuSection(
+                        items: [
+                          _MenuItem(
+                            icon: Icons.help_outline_rounded,
+                            color: AppTheme.oceanWater,
+                            title: 'Pusat Bantuan & FAQ',
+                            subtitle: 'Panduan penggunaan dan tanya jawab',
+                            onTap: () => context.push('/help'),
+                          ),
+                          _MenuItem(
+                            icon: Icons.support_agent_rounded,
+                            color: AppTheme.brilliantBlue,
+                            title: 'Hubungi Admin',
+                            subtitle: 'Kontak WhatsApp, email, dan pesan tiket',
+                            onTap: () => context.push('/contact-admin'),
+                          ),
+                          _MenuItem(
+                            icon: Icons.system_update_rounded,
+                            color: AppTheme.oceanWater,
+                            title: 'Cek Pembaruan',
+                            subtitle: 'Versi terpasang: $versionLabel',
+                            onTap: () => AppUpdateDialog.checkAndShow(
+                              context,
+                              manual: true,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -147,11 +167,11 @@ class ProfileScreen extends ConsumerWidget {
                         isDanger: true,
                       ),
                       _MenuItem(
-                        icon: Icons.delete_forever_outlined,
+                        icon: Icons.pause_circle_outline_rounded,
                         color: AppTheme.danger,
-                        title: 'Hapus Akun',
-                        subtitle: 'Hapus akun dan semua data Anda',
-                        onTap: () => _confirmDeleteAccount(context, ref),
+                        title: 'Nonaktifkan Akun',
+                        subtitle: 'Keluar dan bekukan akses tanpa menghapus data',
+                        onTap: () => _confirmDeactivateAccount(context, ref),
                         isDanger: true,
                       ),
                     ],
@@ -199,29 +219,37 @@ class ProfileScreen extends ConsumerWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      showDialog(
+      var dialogOpen = true;
+      final rootNav = Navigator.of(context, rootNavigator: true);
+      showDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
+      ).whenComplete(() => dialogOpen = false);
 
-      final authService = AuthService();
-      await authService.logout();
+      try {
+        final authService = AuthService();
+        await authService.logout();
+      } finally {
+        if (dialogOpen && rootNav.mounted && rootNav.canPop()) {
+          dialogOpen = false;
+          rootNav.pop();
+        }
+      }
 
       if (!context.mounted) return;
-      Navigator.of(context, rootNavigator: true).pop(); // dismiss loading dialog
       context.go('/login');
     }
   }
 
-  Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+  Future<void> _confirmDeactivateAccount(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Hapus akun?'),
+        title: const Text('Nonaktifkan akun?'),
         content: const Text(
-          'Akun dan seluruh data Anda akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.',
+          'Anda akan keluar. Tiket dan riwayat chat tetap tersimpan. Hubungi admin untuk mengaktifkan akun kembali.',
         ),
         actions: [
           TextButton(
@@ -236,28 +264,39 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Hapus'),
+            child: const Text('Nonaktifkan'),
           ),
         ],
       ),
     );
 
     if (confirmed == true && context.mounted) {
-      showDialog(
+      var dialogOpen = true;
+      final rootNav = Navigator.of(context, rootNavigator: true);
+      showDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
+      ).whenComplete(() => dialogOpen = false);
 
-      final result = await ref.read(userProfileProvider.notifier).deleteAccount();
+      final Map<String, dynamic> result;
+      try {
+        result = await ref.read(userProfileProvider.notifier).deactivateAccount();
+      } finally {
+        if (dialogOpen && rootNav.mounted && rootNav.canPop()) {
+          dialogOpen = false;
+          rootNav.pop();
+        }
+      }
       if (!context.mounted) return;
-      Navigator.of(context, rootNavigator: true).pop(); // dismiss loading
 
       if (result['success'] == true) {
+        await AuthService().clearLocalSession();
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.floating,
-            content: Text(result['message'] ?? 'Akun Anda telah berhasil dihapus permanen'),
+            content: Text(result['message'] ?? 'Akun berhasil dinonaktifkan'),
             backgroundColor: AppTheme.danger,
           ),
         );
@@ -266,7 +305,7 @@ class ProfileScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.floating,
-            content: Text(result['message'] ?? 'Gagal menghapus akun'),
+            content: Text(result['message'] ?? 'Gagal menonaktifkan akun'),
             backgroundColor: AppTheme.danger,
           ),
         );

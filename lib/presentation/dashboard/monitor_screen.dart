@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:halo_apu_mobile/core/services/session_manager.dart';
 import 'package:halo_apu_mobile/domain/models/monitor_asset_model.dart';
 import 'package:halo_apu_mobile/domain/models/monitor_calendar_model.dart';
 import 'package:halo_apu_mobile/presentation/dashboard/providers/monitor_provider.dart';
+import 'package:halo_apu_mobile/presentation/widgets/app_error_view.dart';
 import 'package:halo_apu_mobile/presentation/widgets/shimmer.dart';
 import 'package:halo_apu_mobile/presentation/widgets/entrance_animation.dart';
 
@@ -175,7 +177,12 @@ class _AssetListView extends ConsumerWidget {
           child: ShimmerBox(height: 120, radius: 20),
         ),
       ),
-      error: (err, stack) => Center(child: Text('Terjadi kesalahan:\n$err', textAlign: TextAlign.center)),
+      error: (err, stack) => AppErrorView(
+        error: err,
+        fullPage: false,
+        onRetry: () => ref.read(monitorProvider.notifier).refresh(),
+        onLogin: () => SessionManager.instance.forceReLogin(),
+      ),
     );
   }
 }
@@ -370,7 +377,12 @@ class _CalendarView extends ConsumerWidget {
           child: ShimmerBox(height: 180, radius: 20),
         ),
       ),
-      error: (err, stack) => Center(child: Text('Terjadi kesalahan:\n$err', textAlign: TextAlign.center)),
+      error: (err, stack) => AppErrorView(
+        error: err,
+        fullPage: false,
+        onRetry: () => ref.read(monitorProvider.notifier).refresh(),
+        onLogin: () => SessionManager.instance.forceReLogin(),
+      ),
     );
   }
 }

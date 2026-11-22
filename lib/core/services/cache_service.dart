@@ -160,7 +160,8 @@ class CacheService {
   /// Mengosongkan seluruh isi kotak cache.
   static Future<void> clear() async {
     try {
-      final box = await _getBox();
+      if (!Hive.isBoxOpen(boxName)) return;
+      final box = Hive.box(boxName);
       await box.clear();
     } catch (e) {
       debugPrint('CacheService clear error: $e');

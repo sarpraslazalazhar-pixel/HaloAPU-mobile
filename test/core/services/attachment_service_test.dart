@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:halo_apu_mobile/core/config/api_config.dart';
 import 'package:halo_apu_mobile/core/services/attachment_service.dart';
@@ -103,6 +105,28 @@ void main() {
       expect(AttachmentService.cachedToken, 'test_token_123');
       AttachmentService.clearTokenCache();
       expect(AttachmentService.cachedToken, isNull);
+    });
+
+    test('deletes tracked temporary downloaded files on clearDownloadedTempFiles / clearTokenCache', () async {
+      final tempDir = await Directory.systemTemp.createTemp('halo_apu_attach_test_');
+      addTearDown(() async {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      final tempFile = File('${tempDir.path}/sensitive_invoice.pdf');
+      await tempFile.writeAsString('secret content');
+      expect(await tempFile.exists(), isTrue);
+
+      AttachmentService.trackTempFileForTesting(tempFile.path);
+      expect(AttachmentService.trackedTempFilesForTesting, contains(tempFile.path));
+
+      AttachmentService.clearTokenCache();
+      await AttachmentService.clearDownloadedTempFiles();
+
+      expect(await tempFile.exists(), isFalse);
+      expect(AttachmentService.trackedTempFilesForTesting, isEmpty);
     });
   });
 }

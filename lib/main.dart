@@ -8,8 +8,19 @@ import 'package:halo_apu_mobile/core/services/pending_ticket_service.dart';
 import 'package:halo_apu_mobile/core/config/api_config.dart';
 import 'package:halo_apu_mobile/core/services/cache_service.dart';
 import 'package:halo_apu_mobile/core/config/app_flavor.dart';
+import 'package:halo_apu_mobile/core/services/app_update_service.dart';
+import 'package:halo_apu_mobile/core/services/session_manager.dart';
+import 'package:halo_apu_mobile/data/repositories/dashboard_repository.dart';
+import 'package:halo_apu_mobile/presentation/dashboard/providers/csat_provider.dart';
+import 'package:halo_apu_mobile/presentation/dashboard/providers/monitor_provider.dart';
+import 'package:halo_apu_mobile/presentation/notifications/providers/notification_provider.dart';
+import 'package:halo_apu_mobile/presentation/profile/providers/user_profile_provider.dart';
+import 'package:halo_apu_mobile/presentation/ratings/providers/rating_provider.dart';
+import 'package:halo_apu_mobile/presentation/tickets/providers/admin_ticket_provider.dart';
+import 'package:halo_apu_mobile/presentation/tickets/providers/user_ticket_provider.dart';
 import 'package:halo_apu_mobile/presentation/widgets/app_error_view.dart';
 import 'package:halo_apu_mobile/presentation/widgets/app_lock_gate.dart';
+import 'package:halo_apu_mobile/presentation/widgets/app_update_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,8 +63,53 @@ void main() async {
   });
 }
 
-class HaloApuApp extends StatelessWidget {
+class HaloApuApp extends ConsumerStatefulWidget {
   const HaloApuApp({super.key});
+
+  @override
+  ConsumerState<HaloApuApp> createState() => _HaloApuAppState();
+}
+
+class _HaloApuAppState extends ConsumerState<HaloApuApp> {
+  @override
+  void initState() {
+    super.initState();
+    SessionManager.instance.onInvalidateProviders = _invalidateAllProviders;
+    AppUpdateService.notificationUpdateTrigger.addListener(_handleUpdateNotificationTrigger);
+  }
+
+  @override
+  void dispose() {
+    AppUpdateService.notificationUpdateTrigger.removeListener(_handleUpdateNotificationTrigger);
+    if (SessionManager.instance.onInvalidateProviders == _invalidateAllProviders) {
+      SessionManager.instance.onInvalidateProviders = null;
+    }
+    super.dispose();
+  }
+
+  void _handleUpdateNotificationTrigger() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final navContext = rootNavigatorKey.currentContext;
+      if (navContext != null && navContext.mounted) {
+        AppUpdateDialog.checkAndShow(navContext, manual: true);
+      }
+    });
+  }
+
+  void _invalidateAllProviders() {
+    if (!mounted) return;
+    ref.invalidate(adminTicketProvider);
+    ref.invalidate(userTicketProvider);
+    ref.invalidate(userProfileProvider);
+    ref.invalidate(adminProfileProvider);
+    ref.invalidate(notificationProvider);
+    ref.invalidate(dashboardRepositoryProvider);
+    ref.invalidate(monitorProvider);
+    ref.invalidate(csatProvider);
+    ref.invalidate(ratingProvider);
+    ref.invalidate(adminRatingProvider);
+  }
 
   @override
   Widget build(BuildContext context) {

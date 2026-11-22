@@ -5,6 +5,7 @@ import '../storage/secure_storage_helper.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import '../config/api_config.dart';
+import 'session_manager.dart';
 
 class TicketService {
   final Dio _dio;
@@ -26,6 +27,16 @@ class TicketService {
           options.headers['Authorization'] = 'Bearer $token';
         }
         return handler.next(options);
+      },
+      onError: (DioException e, handler) async {
+        if (e.response?.statusCode == 401) {
+          await SessionManager.handleHttpUnauthorized(
+            path: e.requestOptions.path,
+            authorizationHeader: e.requestOptions.headers['Authorization'],
+            responseData: e.response?.data,
+          );
+        }
+        return handler.next(e);
       },
     ));
   }
@@ -100,7 +111,10 @@ class TicketService {
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': _errorMessage(e.response?.data, 'Gagal memuat layanan')
+        'statusCode': e.response?.statusCode,
+        'message': e.response?.statusCode == 401
+            ? SessionManager.extractUnauthorizedMessage(e.response?.data)
+            : _errorMessage(e.response?.data, 'Gagal mengambil layanan')
       };
     }
   }
@@ -113,7 +127,10 @@ class TicketService {
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': _errorMessage(e.response?.data, 'Gagal memuat form')
+        'statusCode': e.response?.statusCode,
+        'message': e.response?.statusCode == 401
+            ? SessionManager.extractUnauthorizedMessage(e.response?.data)
+            : _errorMessage(e.response?.data, 'Gagal memuat form')
       };
     }
   }
@@ -149,7 +166,10 @@ class TicketService {
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': _errorMessage(e.response?.data, 'Gagal mengambil tiket')
+        'statusCode': e.response?.statusCode,
+        'message': e.response?.statusCode == 401
+            ? SessionManager.extractUnauthorizedMessage(e.response?.data)
+            : _errorMessage(e.response?.data, 'Gagal mengambil tiket')
       };
     }
   }
@@ -170,7 +190,10 @@ class TicketService {
     } on DioException catch (e) {
       return {
         'success': false,
-        'message': _errorMessage(e.response?.data, 'Gagal memuat tiket')
+        'statusCode': e.response?.statusCode,
+        'message': e.response?.statusCode == 401
+            ? SessionManager.extractUnauthorizedMessage(e.response?.data)
+            : _errorMessage(e.response?.data, 'Gagal memuat tiket')
       };
     }
   }
@@ -540,6 +563,21 @@ class TicketService {
         }
       }
       return {'success': false, 'message': message};
+    }
+  }
+
+  Future<Map<String, dynamic>> resumeWork(String id) async {
+    try {
+      final cleanId = id.replaceAll('-', '');
+      final response = await _dio.post('/tickets/$cleanId/resume-work');
+      final data = _body(response);
+      return {
+        'success': true,
+        'message': data['message'] ?? 'Tiket dilanjutkan',
+        'data': data['data'],
+      };
+    } on DioException catch (e) {
+      return {'success': false, 'message': _errorMessage(e.response?.data, 'Gagal melanjutkan tiket')};
     }
   }
 

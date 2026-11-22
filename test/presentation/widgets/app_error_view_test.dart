@@ -61,4 +61,30 @@ void main() {
     expect(retried, 1);
     expect(loggedIn, 1);
   });
+
+  testWidgets('AppErrorView inline menampilkan tombol aksi bila disediakan', (tester) async {
+    var retried = 0;
+    var loggedIn = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppErrorView(
+            error: '401 Unauthenticated',
+            fullPage: false,
+            onRetry: () => retried++,
+            onLogin: () => loggedIn++,
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Muat Ulang'), findsOneWidget);
+    expect(find.text('Masuk ke Akun'), findsOneWidget);
+    await tester.tap(find.text('Muat Ulang'));
+    await tester.tap(find.text('Masuk ke Akun'));
+    expect(retried, 1);
+    expect(loggedIn, 1);
+  });
 }

@@ -4,7 +4,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:halo_apu_mobile/core/config/app_flavor.dart';
 import 'package:halo_apu_mobile/core/router/app_router.dart';
+import 'package:halo_apu_mobile/core/services/app_update_service.dart';
 import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 import 'package:halo_apu_mobile/data/api/api_client.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
@@ -332,10 +334,26 @@ class PushNotificationService {
     }
   }
 
+  /// Mengembalikan `true` jika payload `app_update` ditujukan untuk channel lain
+  /// sehingga tidak memicu banner atau dialog pada flavor yang berbeda.
+  @visibleForTesting
+  static bool shouldIgnoreAppUpdatePayload(
+    Map<String, dynamic> data, {
+    String? currentChannel,
+  }) {
+    if (data['type'] != 'app_update') return false;
+    final payloadChannel = data['channel']?.toString().trim().toLowerCase();
+    if (payloadChannel == null || payloadChannel.isEmpty) return false;
+    final activeChannel =
+        (currentChannel ?? FlavorConfig.releaseChannel).trim().toLowerCase();
+    return payloadChannel != activeChannel;
+  }
+
   /// Menampilkan notifikasi lokal heads-up banner saat pesan diterima dari FCM foreground
   static Future<void> _showLocalNotification(RemoteMessage message) async {
     final notification = message.notification;
     final data = message.data;
+    if (shouldIgnoreAppUpdatePayload(data)) return;
 
     final title = notification?.title ?? data['title'] ?? 'Halo APU';
     final body = notification?.body ?? data['body'] ?? data['message'] ?? 'Ada pembaruan tiket baru';
@@ -379,6 +397,13 @@ class PushNotificationService {
   /// Menangani navigasi / Deep Linking saat notifikasi diklik
   static Future<void> _handleNotificationData(Map<String, dynamic> data) async {
     try {
+      // Notifikasi pembaruan aplikasi boleh dibuka bahkan sebelum user login
+      if (data['type'] == 'app_update') {
+        if (shouldIgnoreAppUpdatePayload(data)) return;
+        AppUpdateService.instance.triggerFromNotification();
+        return;
+      }
+
       final role = await SafeSecureStorage.read('user_role');
       final authToken = await SafeSecureStorage.read('auth_token');
       if (authToken == null || authToken.isEmpty) {

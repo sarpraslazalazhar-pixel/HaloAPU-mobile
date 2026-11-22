@@ -36,6 +36,7 @@ class TicketRepository {
         throw Exception('Gagal memuat tiket');
       }
     } catch (e) {
+      if (e is DioException && e.response?.statusCode == 401) rethrow;
       final cached = CacheService.getStale(cacheKey);
       if (cached != null) {
         final List<dynamic> data = cached is List ? cached : [];
@@ -59,6 +60,7 @@ class TicketRepository {
         throw Exception('Gagal memuat detail tiket');
       }
     } catch (e) {
+      if (e is DioException && e.response?.statusCode == 401) rethrow;
       final cached = CacheService.getStale(cacheKey);
       if (cached != null) {
         return Map<String, dynamic>.from(cached);
@@ -81,6 +83,7 @@ class TicketRepository {
         throw Exception('Gagal memuat tiket');
       }
     } catch (e) {
+      if (e is DioException && e.response?.statusCode == 401) rethrow;
       final cached = CacheService.getStale(cacheKey);
       if (cached != null) {
         return TicketModel.safeFromJson(cached);
@@ -102,6 +105,7 @@ class TicketRepository {
         throw Exception('Gagal memuat layanan');
       }
     } catch (e) {
+      if (e is DioException && e.response?.statusCode == 401) rethrow;
       final cached = CacheService.getStale(cacheKey);
       if (cached != null) {
         return cached is List ? cached : [cached];
@@ -123,6 +127,7 @@ class TicketRepository {
         throw Exception('Gagal memuat form fields');
       }
     } catch (e) {
+      if (e is DioException && e.response?.statusCode == 401) rethrow;
       final cached = CacheService.getStale(cacheKey);
       if (cached != null) {
         return cached is List ? cached : [cached];

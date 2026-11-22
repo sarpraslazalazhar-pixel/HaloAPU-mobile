@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:halo_apu_mobile/core/services/session_manager.dart';
 import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 import 'package:halo_apu_mobile/data/api/api_client.dart';
 
@@ -75,9 +76,12 @@ void main() {
   setUp(() {
     fakeStorage = _FakeSecureStorage();
     SafeSecureStorage.setStorageForTesting(fakeStorage);
+    SessionManager.instance.resetForTest();
+    SessionManager.instance.onNavigateToLogin = () {};
   });
 
   tearDown(() {
+    SessionManager.instance.resetForTest();
     SafeSecureStorage.clearMemoryCacheForTesting();
   });
 
@@ -85,6 +89,7 @@ void main() {
     await SafeSecureStorage.write('auth_token', 'tok_123');
     await SafeSecureStorage.write('user_role', 'user');
     await SafeSecureStorage.write('user_data', '{"name":"Budi"}');
+    await SafeSecureStorage.write('dashboard_cache', '{"stats":{}}');
     await SafeSecureStorage.write('app_device_hardware_id', 'AND_123456');
 
     // Simulate cold-start cache cleared + 1 transient KeyStore failure before succeeding
@@ -98,11 +103,12 @@ void main() {
     fakeStorage.failReadsRemaining = 5;
     expect(await SafeSecureStorage.read('auth_token'), equals('tok_123'));
 
-    // clearSession only deletes session keys, keeping device ID
+    // clearSession only deletes session keys (incl. dashboard_cache), keeping device ID
     await SafeSecureStorage.clearSession();
     expect(await SafeSecureStorage.read('auth_token', bypassCache: true), isNull);
     expect(await SafeSecureStorage.read('user_role', bypassCache: true), isNull);
     expect(await SafeSecureStorage.read('user_data', bypassCache: true), isNull);
+    expect(await SafeSecureStorage.read('dashboard_cache', bypassCache: true), isNull);
     expect(fakeStorage.store['app_device_hardware_id'], equals('AND_123456'));
   });
 

@@ -12,9 +12,15 @@ class FlavorConfig {
     'APP_VERSION',
     defaultValue: '1.0.1',
   );
+  static const int appBuildNumber = int.fromEnvironment(
+    'APP_BUILD_NUMBER',
+    defaultValue: 0,
+  );
 
   static AppFlavor get current =>
       _envFlavor == 'production' ? AppFlavor.production : AppFlavor.staging;
+
+  static String get releaseChannel => isStaging ? 'staging' : 'production';
 
   static String get baseUrl {
     if (_customBaseUrl.isNotEmpty) return _customBaseUrl;

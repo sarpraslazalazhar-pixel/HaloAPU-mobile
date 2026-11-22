@@ -45,7 +45,7 @@ class AppErrorView extends StatelessWidget {
                 child: tiny
                     ? const Icon(Icons.error_outline_rounded, color: AppTheme.danger, size: 28)
                     : SizedBox(
-                        width: 200,
+                        width: (onRetry != null || onLogin != null) ? 260 : 200,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -70,6 +70,41 @@ class AppErrorView extends StatelessWidget {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(fontSize: 10.5, color: AppTheme.slateGrey, height: 1.35),
+                              ),
+                            ],
+                            if (onRetry != null) ...[
+                              const SizedBox(height: 14),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: onRetry,
+                                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                                  label: const Text('Muat Ulang'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppTheme.oceanWater,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size(0, 42),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    elevation: 0,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (onLogin != null) ...[
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: onLogin,
+                                  icon: const Icon(Icons.login_rounded, size: 18),
+                                  label: const Text('Masuk ke Akun'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppTheme.brilliantBlue,
+                                    minimumSize: const Size(0, 42),
+                                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                ),
                               ),
                             ],
                           ],

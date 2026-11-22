@@ -17,6 +17,14 @@ name: Build Flutter Apps (Android & iOS)
           - android
           - ios
           - all
+      publish_release:
+        description: 'Publish GitHub Release & optional Laravel webhook'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
 
 jobs:
   build-android:
@@ -59,32 +67,84 @@ jobs:
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          IS_RELEASE_TRIGGER: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release == true) }}
         run: |
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_STORE_PASSWORD" ] && [ -n "$ANDROID_KEY_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ]; then
             echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
             printf "storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=upload-keystore.jks\n" \
               "$ANDROID_STORE_PASSWORD" "$ANDROID_KEY_PASSWORD" "$ANDROID_KEY_ALIAS" > android/key.properties
             echo "Release signing configured."
           else
-            echo "ANDROID_KEYSTORE_BASE64 secret not set; falling back to debug signing."
+            if [ "$IS_RELEASE_TRIGGER" = "true" ]; then
+              echo "::error::Release signing secrets (ANDROID_KEYSTORE_BASE64, ANDROID_STORE_PASSWORD, ANDROID_KEY_PASSWORD, ANDROID_KEY_ALIAS) are required for publishing releases to support in-place updates without uninstall."
+              exit 1
+            fi
+            echo "ANDROID_KEYSTORE_BASE64 secret not set; falling back to debug signing for non-release CI build."
           fi
 
       - name: Extract app version from pubspec.yaml
         run: |
           APP_VERSION=$(grep '^version:' pubspec.yaml | head -n1 | sed -E 's/version:[[:space:]]*([^+]+).*/\1/' | tr -d '\r')
           BUILD_NUMBER=$((10 + GITHUB_RUN_NUMBER))
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            RELEASE_TAG="${GITHUB_REF_NAME}"
+          else
+            RELEASE_TAG="v${APP_VERSION}-b${BUILD_NUMBER}"
+          fi
           echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
-          echo "Resolved APP_VERSION=$APP_VERSION BUILD_NUMBER=$BUILD_NUMBER"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
+          echo "Resolved APP_VERSION=$APP_VERSION BUILD_NUMBER=$BUILD_NUMBER RELEASE_TAG=$RELEASE_TAG"
 
       - name: Build APK Staging
-        run: flutter build apk --flavor staging --dart-define=FLAVOR=staging --dart-define=APP_VERSION=$APP_VERSION --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release
+        run: flutter build apk --flavor staging --dart-define=FLAVOR=staging --dart-define=APP_VERSION=$APP_VERSION --dart-define=APP_BUILD_NUMBER=$BUILD_NUMBER --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release
 
       - name: Build APK Production
-        run: flutter build apk --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release
+        run: flutter build apk --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --dart-define=APP_BUILD_NUMBER=$BUILD_NUMBER --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release
 
       - name: Build AAB Production
-        run: flutter build appbundle --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release
+        run: flutter build appbundle --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --dart-define=APP_BUILD_NUMBER=$BUILD_NUMBER --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release
+
+      - name: Package Release APKs, Verify Signing Certs & Compute SHA-256
+        run: |
+          mkdir -p release-assets
+          PROD_SRC=$(ls build/app/outputs/flutter-apk/*production*release*.apk | head -n1)
+          STAGING_SRC=$(ls build/app/outputs/flutter-apk/*staging*release*.apk | head -n1)
+
+          PROD_APK="release-assets/haloapu-production-v${APP_VERSION}-b${BUILD_NUMBER}.apk"
+          STAGING_APK="release-assets/haloapu-staging-v${APP_VERSION}-b${BUILD_NUMBER}.apk"
+
+          cp "$PROD_SRC" "$PROD_APK"
+          cp "$STAGING_SRC" "$STAGING_APK"
+
+          PROD_SHA256=$(sha256sum "$PROD_APK" | awk '{print $1}')
+          PROD_SIZE=$(stat -c%s "$PROD_APK")
+          STAGING_SHA256=$(sha256sum "$STAGING_APK" | awk '{print $1}')
+          STAGING_SIZE=$(stat -c%s "$STAGING_APK")
+
+          echo "PROD_APK=$PROD_APK" >> $GITHUB_ENV
+          echo "PROD_SHA256=$PROD_SHA256" >> $GITHUB_ENV
+          echo "PROD_SIZE=$PROD_SIZE" >> $GITHUB_ENV
+          echo "STAGING_APK=$STAGING_APK" >> $GITHUB_ENV
+          echo "STAGING_SHA256=$STAGING_SHA256" >> $GITHUB_ENV
+          echo "STAGING_SIZE=$STAGING_SIZE" >> $GITHUB_ENV
+
+          APKSIGNER_BIN=$(find "${ANDROID_HOME:-$HOME/Android/Sdk}/build-tools" -name apksigner 2>/dev/null | sort -V | tail -n1 || true)
+          {
+            echo "# Halo APU Release Checksums (v${APP_VERSION} build ${BUILD_NUMBER})"
+            echo "$PROD_SHA256  $(basename "$PROD_APK")  (${PROD_SIZE} bytes)"
+            echo "$STAGING_SHA256  $(basename "$STAGING_APK")  (${STAGING_SIZE} bytes)"
+            echo ""
+            echo "# Signing Certificate Verification"
+            for apk in "$PROD_APK" "$STAGING_APK"; do
+              echo "== $(basename "$apk") =="
+              if [ -n "$APKSIGNER_BIN" ] && [ -x "$APKSIGNER_BIN" ]; then
+                "$APKSIGNER_BIN" verify --print-certs "$apk"
+              else
+                keytool -printcert -jarfile "$apk"
+              fi
+            done
+          } | tee release-assets/checksums-sha256.txt
 
       - name: Upload Staging APK artifacts
         uses: actions/upload-artifact@v4
@@ -103,6 +163,89 @@ jobs:
         with:
           name: android-bundle-production
           path: build/app/outputs/bundle/productionRelease/*.aab
+
+      - name: Upload Release Checksums artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-checksums
+          path: release-assets/checksums-sha256.txt
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release == true)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Halo APU v${{ env.APP_VERSION }} (Build ${{ env.BUILD_NUMBER }})
+          generate_release_notes: true
+          files: |
+            ${{ env.PROD_APK }}
+            ${{ env.STAGING_APK }}
+            release-assets/checksums-sha256.txt
+
+      - name: Notify Laravel App Release Webhook (Optional)
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release == true)
+        env:
+          PROD_WEBHOOK_URL: ${{ secrets.APP_RELEASE_WEBHOOK_URL }}
+          STAGING_WEBHOOK_URL: ${{ secrets.APP_RELEASE_STAGING_WEBHOOK_URL }}
+          WEBHOOK_SECRET: ${{ secrets.APP_RELEASE_WEBHOOK_SECRET }}
+        run: |
+          if [ -z "$WEBHOOK_SECRET" ]; then
+            echo "APP_RELEASE_WEBHOOK_SECRET not configured; skipping Laravel release webhook."
+            exit 0
+          fi
+
+          BASE_DOWNLOAD="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}"
+
+          if [ -n "$PROD_WEBHOOK_URL" ]; then
+            PROD_URL="${BASE_DOWNLOAD}/$(basename "$PROD_APK")"
+            PROD_PAYLOAD=$(cat <<EOF
+          {
+            "platform": "android",
+            "channel": "production",
+            "version_name": "${APP_VERSION}",
+            "build_number": ${BUILD_NUMBER},
+            "download_url": "${PROD_URL}",
+            "sha256": "${PROD_SHA256}",
+            "file_size_bytes": ${PROD_SIZE},
+            "is_active": false
+          }
+          EOF
+          )
+            curl -fsS -X POST "$PROD_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -H "Accept: application/json" \
+              -H "X-Release-Token: $WEBHOOK_SECRET" \
+              -d "$PROD_PAYLOAD"
+            echo "Production release registered via webhook."
+          fi
+
+          if [ -n "$STAGING_WEBHOOK_URL" ]; then
+            STAGING_URL="${BASE_DOWNLOAD}/$(basename "$STAGING_APK")"
+            STAGING_PAYLOAD=$(cat <<EOF
+          {
+            "platform": "android",
+            "channel": "staging",
+            "version_name": "${APP_VERSION}",
+            "build_number": ${BUILD_NUMBER},
+            "download_url": "${STAGING_URL}",
+            "sha256": "${STAGING_SHA256}",
+            "file_size_bytes": ${STAGING_SIZE},
+            "is_active": false
+          }
+          EOF
+          )
+            curl -fsS -X POST "$STAGING_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -H "Accept: application/json" \
+              -H "X-Release-Token: $WEBHOOK_SECRET" \
+              -d "$STAGING_PAYLOAD"
+            echo "Staging release registered via webhook."
+          fi
+
+      - name: Cleanup Android signing material
+        if: always()
+        run: rm -f android/app/upload-keystore.jks android/key.properties
+
   build-ios:
     runs-on: macos-15
     if: github.event_name != 'workflow_dispatch' || inputs.build_target == 'all' || inputs.build_target == 'ios'
@@ -144,7 +287,7 @@ jobs:
       - name: Build iOS Staging (unsigned)
         run: |
           mkdir -p build/ios/SourcePackages build/macos/SourcePackages
-          flutter build ios --flavor staging --dart-define=FLAVOR=staging --dart-define=APP_VERSION=$APP_VERSION --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release --no-codesign
+          flutter build ios --flavor staging --dart-define=FLAVOR=staging --dart-define=APP_VERSION=$APP_VERSION --dart-define=APP_BUILD_NUMBER=$BUILD_NUMBER --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release --no-codesign
 
       - name: Package unsigned Staging IPA
         run: |
@@ -158,7 +301,7 @@ jobs:
       - name: Build iOS Production (unsigned)
         run: |
           mkdir -p build/ios/SourcePackages build/macos/SourcePackages
-          flutter build ios --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release --no-codesign
+          flutter build ios --flavor production --dart-define=FLAVOR=production --dart-define=APP_VERSION=$APP_VERSION --dart-define=APP_BUILD_NUMBER=$BUILD_NUMBER --build-name=$APP_VERSION --build-number=$BUILD_NUMBER --release --no-codesign
 
       - name: Package unsigned Production IPA
         run: |

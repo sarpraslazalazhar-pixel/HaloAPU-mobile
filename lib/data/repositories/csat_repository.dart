@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../../domain/models/csat_model.dart';
@@ -20,6 +21,9 @@ class CsatRepository {
         return data.map((json) => PendingCsatModel.fromJson(json)).toList();
       }
       return [];
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) rethrow;
+      return [];
     } catch (_) {
       return [];
     }
@@ -32,6 +36,9 @@ class CsatRepository {
         final List<dynamic> data = response.data['data'] ?? [];
         return data.map((json) => CsatModel.fromJson(json)).toList();
       }
+      return [];
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) rethrow;
       return [];
     } catch (_) {
       return [];
@@ -48,6 +55,9 @@ class CsatRepository {
         },
       );
       return response.statusCode == 200 || response.statusCode == 201;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) rethrow;
+      return false;
     } catch (_) {
       return false;
     }

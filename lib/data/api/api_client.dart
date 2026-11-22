@@ -5,6 +5,7 @@ import '../../core/storage/secure_storage_helper.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import '../../core/config/api_config.dart';
 import '../../core/services/attachment_service.dart';
+import '../../core/services/session_manager.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient();
@@ -41,17 +42,20 @@ class ApiClient {
         String errorMessage = 'Terjadi kesalahan sistem';
 
         if (e.response?.statusCode == 401) {
-          final authHeader = e.requestOptions.headers['Authorization']?.toString() ?? '';
-          if (authHeader.startsWith('Bearer ')) {
-            final failedToken = authHeader.substring(7).trim();
-            final currentToken = await SafeSecureStorage.read('auth_token');
-            if (currentToken != null && currentToken == failedToken) {
-              // Hanya bersihkan sesi jika request memang mengirim token aktif yang sama
-              await SafeSecureStorage.clearSession();
-              AttachmentService.clearTokenCache();
-            }
+          final data = e.response?.data;
+          if (!SessionManager.isAuthEndpoint(e.requestOptions.path)) {
+            await SessionManager.handleHttpUnauthorized(
+              path: e.requestOptions.path,
+              authorizationHeader: e.requestOptions.headers['Authorization'],
+              responseData: data,
+            );
+            errorMessage = SessionManager.extractUnauthorizedMessage(data);
+          } else {
+            final rawMsg = (data is Map ? data['message'] : null)?.toString().trim();
+            errorMessage = (rawMsg != null && rawMsg.isNotEmpty && rawMsg != 'Unauthenticated.')
+                ? rawMsg
+                : 'Email/username atau kata sandi salah.';
           }
-          errorMessage = 'Sesi telah berakhir. Silakan login kembali.';
         } else if (e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout) {
           errorMessage = 'Koneksi ke server habis (Timeout). Silakan coba lagi.';
@@ -59,15 +63,19 @@ class ApiClient {
           errorMessage = 'Tidak dapat terhubung ke server. Periksa jaringan Anda.';
         } else if (e.response != null) {
           final data = e.response?.data;
-          if (data is Map && data.containsKey('message') && data['message'] != 'Unauthenticated.') {
+          if (e.response?.statusCode == 429) {
+            final rawMsg = (data is Map ? data['message'] : null)?.toString().trim();
+            if (rawMsg != null && rawMsg.isNotEmpty && rawMsg != 'Too Many Attempts.') {
+              errorMessage = rawMsg;
+            } else {
+              errorMessage = 'Terlalu banyak permintaan. Silakan coba lagi sebentar lagi.';
+            }
+          } else if (data is Map && data.containsKey('message') && data['message'] != 'Unauthenticated.') {
             errorMessage = data['message'].toString();
           } else {
             switch (e.response?.statusCode) {
               case 400:
                 errorMessage = 'Permintaan tidak valid.';
-                break;
-              case 401:
-                errorMessage = 'Sesi telah berakhir. Silakan login kembali.';
                 break;
               case 403:
                 errorMessage = 'Anda tidak memiliki hak akses.';

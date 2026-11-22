@@ -92,8 +92,15 @@ class UserTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
 
       // Simpan ke cache (TTL 5 menit)
       await CacheService.put(cacheKey, data, ttlSeconds: 300);
+    } else if (result['statusCode'] == 401) {
+      _allTickets.clear();
+      _hasMore = false;
+      state = AsyncValue.error(
+        result['message'] ?? 'Sesi Anda telah berakhir. Silakan login kembali.',
+        StackTrace.current,
+      );
     } else {
-      // Jika gagal dan belum ada data, coba stale cache
+      // Jika gagal (non-401) dan belum ada data, coba stale cache
       if (_allTickets.isEmpty) {
         final stale = CacheService.getStale(cacheKey);
         if (stale != null && stale is List) {

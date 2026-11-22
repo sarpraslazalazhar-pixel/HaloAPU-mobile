@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:halo_apu_mobile/core/services/session_manager.dart';
 import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 import 'package:halo_apu_mobile/presentation/splash/splash_screen.dart';
 import 'package:halo_apu_mobile/presentation/auth/login_screen.dart';
@@ -50,8 +51,12 @@ Page<void> _fadeSlidePage(GoRouterState state, Widget child) {
   );
 }
 
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final GoRouter appRouter = GoRouter(
+  navigatorKey: rootNavigatorKey,
   initialLocation: '/splash',
+  refreshListenable: SessionManager.instance,
   redirect: (context, state) async {
     // 1. Fast-path: Biarkan /splash langsung lewat tanpa menunggu secure storage!
     if (state.matchedLocation == '/splash') {
@@ -211,6 +216,8 @@ final GoRouter appRouter = GoRouter(
   errorBuilder: (context, state) => AppErrorView(
     error: state.error?.toString(),
     onRetry: () => appRouter.go('/splash'),
-    onLogin: () => appRouter.go('/login'),
+    onLogin: () {
+      SessionManager.instance.forceReLogin();
+    },
   ),
 );

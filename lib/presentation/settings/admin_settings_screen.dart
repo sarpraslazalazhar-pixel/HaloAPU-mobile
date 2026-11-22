@@ -6,10 +6,12 @@ import '../../core/storage/secure_storage_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/config/app_flavor.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/app_update_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/biometric_service.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../profile/providers/user_profile_provider.dart';
+import '../widgets/app_update_dialog.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/entrance_animation.dart';
 import '../widgets/app_avatar.dart';
@@ -105,8 +107,8 @@ class AdminSettingsScreen extends ConsumerWidget {
                   _SettingsTile(
                     icon: Icons.phonelink_lock_rounded,
                     color: const Color(0xFFD97706),
-                    title: 'Buka Kunci Perangkat (1 Akun 1 HP)',
-                    subtitle: 'Reset kunci HP user yang berganti perangkat',
+                    title: 'Kelola Akun & Perangkat',
+                    subtitle: 'Aktifkan akun dan buka kunci HP user',
                     onTap: () => _showDeviceManagementSheet(context, ref),
                   ),
                   const Divider(height: 1, indent: 60, endIndent: 16),
@@ -131,11 +133,22 @@ class AdminSettingsScreen extends ConsumerWidget {
                     },
                   ),
                   const Divider(height: 1, indent: 60, endIndent: 16),
-                  const _SettingsTile(
-                    icon: Icons.info_outline_rounded,
-                    color: AppTheme.brilliantBlue,
-                    title: 'Versi Aplikasi',
-                    subtitle: FlavorConfig.appVersion,
+                  FutureBuilder<String>(
+                    future: AppUpdateService.instance.getFormattedCurrentVersion(),
+                    initialData: 'v${FlavorConfig.appVersion}',
+                    builder: (context, snapshot) {
+                      final versionLabel = snapshot.data ?? 'v${FlavorConfig.appVersion}';
+                      return _SettingsTile(
+                        icon: Icons.system_update_rounded,
+                        color: AppTheme.brilliantBlue,
+                        title: 'Versi Aplikasi & Pembaruan',
+                        subtitle: '$versionLabel • Ketuk untuk cek pembaruan',
+                        onTap: () => AppUpdateDialog.checkAndShow(
+                          context,
+                          manual: true,
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -215,17 +228,25 @@ class AdminSettingsScreen extends ConsumerWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      showDialog(
+      var dialogOpen = true;
+      final rootNav = Navigator.of(context, rootNavigator: true);
+      showDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
+      ).whenComplete(() => dialogOpen = false);
 
-      final authService = AuthService();
-      await authService.logout();
+      try {
+        final authService = AuthService();
+        await authService.logout();
+      } finally {
+        if (dialogOpen && rootNav.mounted && rootNav.canPop()) {
+          dialogOpen = false;
+          rootNav.pop();
+        }
+      }
 
       if (!context.mounted) return;
-      Navigator.of(context, rootNavigator: true).pop(); // dismiss loading dialog
       context.go('/login');
     }
   }
@@ -242,6 +263,8 @@ class _DeviceManagementBottomSheetState extends ConsumerState<_DeviceManagementB
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
   bool _deviceLockEnabled = true;
+  bool _canManageAccounts = false;
+  int? _statusUpdatingUserId;
   List<dynamic> _users = [];
   String _errorMessage = '';
 
@@ -264,6 +287,7 @@ class _DeviceManagementBottomSheetState extends ConsumerState<_DeviceManagementB
         setState(() {
           _users = response['data'] ?? [];
           _deviceLockEnabled = response['device_lock_enabled'] ?? true;
+          _canManageAccounts = response['can_manage_accounts'] == true;
           _isLoading = false;
         });
       }
@@ -298,6 +322,68 @@ class _DeviceManagementBottomSheetState extends ConsumerState<_DeviceManagementB
         );
       }
     }
+  }
+
+  Future<void> _toggleAccountStatus(Map<String, dynamic> user) async {
+    final userId = user['id'];
+    final userName = (user['name'] ?? user['username'] ?? 'pengguna').toString();
+    final currentlyActive = user['is_active'] != false;
+    final nextActive = !currentlyActive;
+
+    if (userId is! int || _statusUpdatingUserId != null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(nextActive ? 'Aktifkan akun?' : 'Nonaktifkan akun?'),
+        content: Text(
+          nextActive
+              ? 'Akun $userName dapat login kembali dan memakai aplikasi.'
+              : 'Akun $userName akan keluar dan tidak bisa login. Tiket serta riwayat chat tetap tersimpan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: nextActive ? AppTheme.oceanWater : AppTheme.danger,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text(nextActive ? 'Aktifkan' : 'Nonaktifkan'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _statusUpdatingUserId = userId);
+
+    final result = await ref.read(authRepositoryProvider).updateUserStatus(userId, nextActive);
+
+    if (!mounted) return;
+    setState(() {
+      _statusUpdatingUserId = null;
+      if (result['success'] == true) {
+        final index = _users.indexWhere((u) => u is Map && u['id'] == userId);
+        if (index != -1) {
+          final updated = Map<String, dynamic>.from(_users[index] as Map);
+          updated['is_active'] = nextActive;
+          _users[index] = updated;
+        }
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result['message'] ?? (nextActive ? 'Akun diaktifkan' : 'Akun dinonaktifkan')),
+        backgroundColor: result['success'] == true ? AppTheme.oceanWater : AppTheme.danger,
+      ),
+    );
   }
 
   Future<void> _resetDevice(int userId, String userName, String? currentDevice) async {
@@ -592,6 +678,10 @@ class _DeviceManagementBottomSheetState extends ConsumerState<_DeviceManagementB
                               final name = u['name'] ?? u['username'] ?? 'User';
                               final department = u['department'] ?? '';
                               final deviceName = u['deviceName'] ?? 'Smartphone Android';
+                              final statusKnown = u['is_active'] is bool;
+                              final isActive = u['is_active'] != false;
+                              final canToggleStatus = _canManageAccounts && statusKnown;
+                              final isStatusBusy = _statusUpdatingUserId == u['id'];
 
                               return Container(
                                 padding: const EdgeInsets.all(14),
@@ -644,6 +734,15 @@ class _DeviceManagementBottomSheetState extends ConsumerState<_DeviceManagementB
                                               style: TextStyle(
                                                 fontSize: 11.5,
                                                 color: Colors.grey.shade500,
+                                              ),
+                                            ),
+                                          if (statusKnown)
+                                            Text(
+                                              isActive ? 'Akun aktif' : 'Akun tidak aktif',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: isActive ? const Color(0xFF16A34A) : const Color(0xFFB45309),
                                               ),
                                             ),
                                           const SizedBox(height: 4),
@@ -713,6 +812,33 @@ class _DeviceManagementBottomSheetState extends ConsumerState<_DeviceManagementB
                                           backgroundColor: const Color(0xFFD97706),
                                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                           minimumSize: const Size(60, 32),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        ),
+                                      ),
+                                    if (canToggleStatus)
+                                      const SizedBox(width: 6),
+                                    if (canToggleStatus)
+                                      OutlinedButton.icon(
+                                        onPressed: isStatusBusy
+                                            ? null
+                                            : () => _toggleAccountStatus(Map<String, dynamic>.from(u as Map)),
+                                        icon: isStatusBusy
+                                            ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2))
+                                            : Icon(
+                                                isActive ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded,
+                                                size: 14,
+                                              ),
+                                        label: Text(
+                                          isActive ? 'Nonaktifkan' : 'Aktifkan',
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: isActive ? AppTheme.danger : const Color(0xFF16A34A),
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                          minimumSize: const Size(44, 32),
+                                          side: BorderSide(
+                                            color: isActive ? const Color(0xFFFCA5A5) : const Color(0xFFBBF7D0),
+                                          ),
                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                         ),
                                       ),

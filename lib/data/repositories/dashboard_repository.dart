@@ -42,11 +42,33 @@ class DashboardRepository {
           'assignedToMe': _parseTickets(data['assignedToMe']),
         };
       }
+      if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'statusCode': 401,
+          'isOffline': false,
+          'message': 'Sesi Anda telah berakhir. Silakan login kembali.',
+          'stats': _defaultStats(),
+          'recentTickets': <TicketModel>[],
+          'assignedToMe': <TicketModel>[],
+        };
+      }
       final fallback = await _fallbackFromCache('Gagal mengambil data dari server (${response.statusCode})');
       fallback['statusCode'] = response.statusCode;
       return fallback;
     } on DioException catch (e) {
       final errorMsg = e.error?.toString() ?? e.message ?? 'Tidak dapat terhubung ke server';
+      if (e.response?.statusCode == 401) {
+        return {
+          'success': false,
+          'statusCode': 401,
+          'isOffline': false,
+          'message': errorMsg,
+          'stats': _defaultStats(),
+          'recentTickets': <TicketModel>[],
+          'assignedToMe': <TicketModel>[],
+        };
+      }
       final fallback = await _fallbackFromCache(errorMsg);
       fallback['statusCode'] = e.response?.statusCode;
       return fallback;

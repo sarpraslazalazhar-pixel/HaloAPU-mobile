@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:halo_apu_mobile/core/router/app_router.dart';
 import 'package:halo_apu_mobile/core/services/auth_service.dart';
 import 'package:halo_apu_mobile/core/services/biometric_service.dart';
+import 'package:halo_apu_mobile/core/services/session_manager.dart';
 import 'package:halo_apu_mobile/core/storage/secure_storage_helper.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 
@@ -36,6 +37,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 
   bool _isLocked = false;
   bool _isPrompting = false;
+  bool _isLoggingOut = false;
   bool _hideContentInBackground = false;
   bool _wentToBackground = false;
   bool _canLockCached = false;
@@ -98,13 +100,35 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    SessionManager.instance.onResetAppLock = _resetLockState;
     _initLockCheck();
   }
 
   @override
   void dispose() {
+    if (SessionManager.instance.onResetAppLock == _resetLockState) {
+      SessionManager.instance.onResetAppLock = null;
+    }
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _resetLockState() {
+    _wentToBackground = false;
+    _canLockCached = false;
+    if (!mounted) {
+      _isLocked = false;
+      _isPrompting = false;
+      _hideContentInBackground = false;
+      return;
+    }
+    if (_isLocked || _isPrompting || _hideContentInBackground) {
+      setState(() {
+        _isLocked = false;
+        _isPrompting = false;
+        _hideContentInBackground = false;
+      });
+    }
   }
 
   Future<void> _initLockCheck() async {
@@ -132,6 +156,13 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
   }
 
   Future<void> _handleResumed() async {
+    final hasSession = await _checkSession();
+    if (!mounted) return;
+    if (!hasSession) {
+      _resetLockState();
+      return;
+    }
+
     if (!_wentToBackground) {
       if (_hideContentInBackground && mounted) {
         setState(() => _hideContentInBackground = false);
@@ -170,7 +201,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
   }
 
   Future<void> _promptUnlock() async {
-    if (_isPrompting || !_isLocked) return;
+    if (_isPrompting || _isLoggingOut || !_isLocked) return;
     setState(() => _isPrompting = true);
 
     final ok = await _runAuthenticate();
@@ -188,14 +219,22 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
   }
 
   Future<void> _handleLogout() async {
-    await _runLogout();
-    if (!mounted) return;
-    setState(() {
-      _isLocked = false;
-      _isPrompting = false;
-      _hideContentInBackground = false;
+    if (_isLoggingOut) return;
+    setState(() => _isLoggingOut = true);
+    try {
+      await _runLogout();
+    } finally {
+      _wentToBackground = false;
       _canLockCached = false;
-    });
+      if (mounted) {
+        setState(() {
+          _isLoggingOut = false;
+          _isLocked = false;
+          _isPrompting = false;
+          _hideContentInBackground = false;
+        });
+      }
+    }
   }
 
   @override
@@ -219,6 +258,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
               child: _AppLockOverlay(
                 isLocked: _isLocked,
                 isPrompting: _isPrompting,
+                isLoggingOut: _isLoggingOut,
                 onUnlock: _promptUnlock,
                 onLogout: _handleLogout,
               ),
@@ -232,12 +272,14 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 class _AppLockOverlay extends StatelessWidget {
   final bool isLocked;
   final bool isPrompting;
+  final bool isLoggingOut;
   final VoidCallback onUnlock;
   final VoidCallback onLogout;
 
   const _AppLockOverlay({
     required this.isLocked,
     required this.isPrompting,
+    required this.isLoggingOut,
     required this.onUnlock,
     required this.onLogout,
   });
@@ -304,7 +346,7 @@ class _AppLockOverlay extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: ElevatedButton.icon(
-                        onPressed: isPrompting ? null : onUnlock,
+                        onPressed: (isPrompting || isLoggingOut) ? null : onUnlock,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
@@ -335,14 +377,36 @@ class _AppLockOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   TextButton(
-                    onPressed: isPrompting ? null : onLogout,
-                    child: const Text(
-                      'Keluar ke Login',
-                      style: TextStyle(
-                        color: AppTheme.slateGrey,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    onPressed: (isPrompting || isLoggingOut) ? null : onLogout,
+                    child: isLoggingOut
+                        ? const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppTheme.slateGrey,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Keluar...',
+                                style: TextStyle(
+                                  color: AppTheme.slateGrey,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          )
+                        : const Text(
+                            'Keluar ke Login',
+                            style: TextStyle(
+                              color: AppTheme.slateGrey,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ],
               ],

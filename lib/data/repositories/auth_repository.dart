@@ -4,7 +4,10 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../../core/services/attachment_service.dart';
+import '../../core/services/auth_service.dart';
+import '../../core/services/biometric_service.dart';
 import '../../core/services/device_service.dart';
+import '../../core/services/session_manager.dart';
 import '../../core/storage/secure_storage_helper.dart';
 import '../../domain/models/user_profile_model.dart';
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -25,7 +28,9 @@ class AuthRepository {
       final deviceName = await DeviceService.getDeviceName();
       String? fcmToken;
       try {
-        fcmToken = await FirebaseMessaging.instance.getToken();
+        fcmToken = await FirebaseMessaging.instance
+            .getToken()
+            .timeout(const Duration(seconds: 3));
       } catch (_) {}
 
       final response = await _apiClient.dio.post(
@@ -44,7 +49,8 @@ class AuthRepository {
         final data = response.data['data'];
         final token = data['token'];
         final userData = data['user'];
-        final role = data['role'] ?? 'user';
+        final role = (data['role'] ?? (isAdmin ? 'admin' : 'user')).toString();
+        final name = (userData['name'] ?? userData['username'] ?? 'Pengguna').toString();
 
         // Save token
         AttachmentService.setCachedToken(token);
@@ -53,13 +59,38 @@ class AuthRepository {
 
         // Save user data as JSON
         await SafeSecureStorage.write('user_data', jsonEncode(userData));
+
+        await AuthService.syncBiometricCredentialsOnLogin(
+          biometricService: BiometricService(),
+          email: email,
+          password: password,
+          name: name,
+          role: role,
+        );
+
+        SessionManager.instance.notifyLoginSuccess();
         return UserProfile.fromJson(userData);
       } else {
         throw Exception('Gagal login: ${response.data['message']}');
       }
     } on DioException catch (e) {
+      if (e.response?.statusCode == 429) {
+        final retryAfter = AuthService.parseRetryAfterSeconds(e.response);
+        final data = e.response?.data;
+        final rawMsg = (data is Map ? data['message'] : null)?.toString().trim();
+        final message = (rawMsg != null && rawMsg.isNotEmpty && rawMsg != 'Too Many Attempts.')
+            ? rawMsg
+            : 'Terlalu banyak percobaan login. Silakan coba lagi dalam $retryAfter detik.';
+        throw Exception(message);
+      }
       if (e.response != null && e.response!.statusCode == 401) {
-        throw Exception('Email/username atau password salah');
+        final data = e.response!.data;
+        final msg = (data is Map ? data['message'] : null)?.toString().trim();
+        throw Exception(
+          (msg != null && msg.isNotEmpty && msg != 'Unauthenticated.')
+              ? msg
+              : 'Email/username atau password salah',
+        );
       }
       if (e.response != null && e.response!.statusCode == 422) {
         final errors = e.response!.data['errors'];
@@ -68,24 +99,15 @@ class AuthRepository {
           throw Exception(firstError is List ? firstError.first : firstError.toString());
         }
       }
-      throw Exception('Gagal menghubungi server: ${e.message}');
+      throw Exception('Gagal menghubungi server: ${e.error ?? e.message}');
     } catch (e) {
       if (e is Exception) rethrow;
       throw Exception('Terjadi kesalahan: $e');
     }
   }
 
-  /// Logout user and clear stored data.
-  Future<void> logout() async {
-    try {
-      await _apiClient.dio.post('/logout');
-    } catch (e) {
-      // Ignore errors on logout
-    } finally {
-      await SafeSecureStorage.clearSession();
-      AttachmentService.clearTokenCache();
-    }
-  }
+  /// Logout user and clear stored data via AuthService (instant & non-blocking).
+  Future<void> logout() => AuthService().logout();
 
   /// Check if user is currently logged in (has a stored token).
   Future<bool> isLoggedIn() async {
@@ -120,11 +142,9 @@ class AuthRepository {
       }
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
-        // Token expired, clear data
-        await SafeSecureStorage.clearSession();
-        AttachmentService.clearTokenCache();
+        throw Exception(SessionManager.extractUnauthorizedMessage(e.response?.data));
       }
-      throw Exception('Gagal menghubungi server: ${e.message}');
+      throw Exception('Gagal menghubungi server: ${e.error ?? e.message}');
     }
   }
 
@@ -234,6 +254,31 @@ class AuthRepository {
       }
     } catch (e) {
       throw Exception('Gagal membuka kunci perangkat: $e');
+    }
+  }
+
+  /// Activate / deactivate a requester account.
+  Future<Map<String, dynamic>> updateUserStatus(int userId, bool isActive) async {
+    try {
+      final response = await _apiClient.dio.patch(
+        '/admin/users/$userId/status',
+        data: {'is_active': isActive},
+      );
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': response.data['message'] ?? 'Status akun diperbarui',
+          'data': response.data['data'],
+        };
+      }
+      throw Exception(response.data['message'] ?? 'Gagal memperbarui status akun');
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'message': e.response?.data?['message'] ?? e.error?.toString() ?? 'Gagal memperbarui status akun',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Gagal memperbarui status akun: $e'};
     }
   }
 
