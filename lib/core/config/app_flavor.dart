@@ -10,7 +10,7 @@ class FlavorConfig {
   static const String _customWebUrl = String.fromEnvironment('WEB_URL');
   static const String appVersion = String.fromEnvironment(
     'APP_VERSION',
-    defaultValue: '1.0.1',
+    defaultValue: '1.0.2',
   );
   static const int appBuildNumber = int.fromEnvironment(
     'APP_BUILD_NUMBER',
