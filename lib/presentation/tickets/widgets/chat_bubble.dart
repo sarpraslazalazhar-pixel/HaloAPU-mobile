@@ -5,18 +5,34 @@ import 'package:halo_apu_mobile/presentation/widgets/auth_attachment_image.dart'
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
 import 'package:halo_apu_mobile/core/utils/date_formatter.dart';
 
+const Set<String> _attachmentPlaceholderNotes = {
+  '[Lampiran]',
+  '[Lampiran Tiket]',
+  '[Lampiran Chat]',
+};
+
+/// Mengembalikan `true` jika [note] adalah placeholder internal untuk pesan lampiran tanpa teks.
+bool isAttachmentPlaceholderNote(String note) =>
+    _attachmentPlaceholderNotes.contains(note.trim());
+
 class ChatBubble extends StatelessWidget {
   final TicketReply reply;
   final bool isCurrentUserAdmin;
   final String requesterName;
+  final int? currentAdminId;
   final String? currentAdminName;
+  final bool isTicketClosed;
+  final void Function(TicketReply reply)? onEdit;
 
   const ChatBubble({
     super.key,
     required this.reply,
     required this.isCurrentUserAdmin,
     required this.requesterName,
+    this.currentAdminId,
     this.currentAdminName,
+    this.isTicketClosed = false,
+    this.onEdit,
   });
 
   bool get _isSystemAction {
@@ -30,13 +46,16 @@ class ChatBubble extends StatelessWidget {
 
     // System event actions
     if (action == 'dibuat' ||
+        action == 'alat_diserahkan' ||
+        action == 'alat_dikembalikan' ||
         action.contains('assign') ||
         action.contains('status') ||
         action.contains('priority') ||
         action.contains('revisi') ||
         action == 'solve' ||
         action == 'reject' ||
-        action == 'cancel') {
+        action == 'cancel' ||
+        action.startsWith('work_hours')) {
       return true;
     }
 
@@ -63,13 +82,12 @@ class ChatBubble extends StatelessWidget {
     bool isMe = false;
     if (isCurrentUserAdmin) {
       if (reply.isFromAdmin) {
-        if (currentAdminName != null && currentAdminName!.isNotEmpty) {
+        if (currentAdminId != null && reply.adminId != null) {
+          isMe = reply.adminId == currentAdminId;
+        } else if (currentAdminName != null && currentAdminName!.isNotEmpty) {
           final myName = currentAdminName!.toLowerCase().trim();
           final senderName = (reply.adminName ?? '').toLowerCase().trim();
-          isMe = senderName.isNotEmpty &&
-              (senderName == myName ||
-                  myName.contains(senderName) ||
-                  senderName.contains(myName));
+          isMe = senderName.isNotEmpty && senderName == myName;
         } else {
           isMe = false;
         }
@@ -80,9 +98,12 @@ class ChatBubble extends StatelessWidget {
       isMe = !reply.isFromAdmin;
     }
 
+    final bool canEdit =
+        isMe && onEdit != null && !isTicketClosed && !_isSystemAction && reply.id > 0;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: isMe ? _buildMyBubble(context) : _buildOtherBubble(context),
+      child: isMe ? _buildMyBubble(context, canEdit: canEdit) : _buildOtherBubble(context),
     );
   }
 
@@ -94,8 +115,21 @@ class ChatBubble extends StatelessWidget {
 
     final noteLower = reply.note.toLowerCase();
     final actionLower = reply.action.toLowerCase();
+    String? actionBadgeLabel;
 
-    if (actionLower.contains('assign') || noteLower.contains('ditugaskan') || noteLower.contains('penugasan')) {
+    if (actionLower == 'alat_diserahkan') {
+      icon = Icons.inventory_2_outlined;
+      iconColor = const Color(0xFF0284C7);
+      bgColor = const Color(0xFFE0F2FE);
+      borderColor = const Color(0xFFBAE6FD);
+      actionBadgeLabel = 'Alat Diserahkan';
+    } else if (actionLower == 'alat_dikembalikan') {
+      icon = Icons.assignment_turned_in_rounded;
+      iconColor = const Color(0xFF059669);
+      bgColor = const Color(0xFFD1FAE5);
+      borderColor = const Color(0xFFA7F3D0);
+      actionBadgeLabel = 'Alat Dikembalikan';
+    } else if (actionLower.contains('assign') || noteLower.contains('ditugaskan') || noteLower.contains('penugasan')) {
       icon = Icons.assignment_ind_rounded;
       iconColor = const Color(0xFF4F46E5);
       bgColor = const Color(0xFFEEF2FF);
@@ -115,6 +149,11 @@ class ChatBubble extends StatelessWidget {
       iconColor = const Color(0xFFDC2626);
       bgColor = const Color(0xFFFEE2E2);
       borderColor = const Color(0xFFFECACA);
+    } else if (actionLower.startsWith('work_hours')) {
+      icon = Icons.schedule_rounded;
+      iconColor = const Color(0xFF475569);
+      bgColor = const Color(0xFFF1F5F9);
+      borderColor = const Color(0xFFCBD5E1);
     } else if (noteLower.contains('proses') || noteLower.contains('status')) {
       icon = Icons.sync_alt_rounded;
       iconColor = const Color(0xFFD97706);
@@ -149,15 +188,32 @@ class ChatBubble extends StatelessWidget {
             Icon(icon, size: 13, color: iconColor),
             const SizedBox(width: 6),
             Flexible(
-              child: Text(
-                reply.note,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF334155),
-                  letterSpacing: 0.1,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (actionBadgeLabel != null) ...[
+                    Text(
+                      actionBadgeLabel,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: iconColor,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                  ],
+                  Text(
+                    reply.note,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF334155),
+                      letterSpacing: 0.1,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 6),
@@ -179,6 +235,100 @@ class ChatBubble extends StatelessWidget {
         duration: Duration(seconds: 1),
         behavior: SnackBarBehavior.floating,
       ),
+    );
+  }
+
+  void _showBubbleActions(BuildContext context, {required bool canEdit}) {
+    if (!canEdit) {
+      _copyToClipboard(context);
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          12,
+          16,
+          MediaQuery.of(sheetContext).padding.bottom + 12,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined, color: Color(0xFF00768C)),
+              title: const Text(
+                'Edit Komentar',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                onEdit?.call(reply);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy_rounded, color: Color(0xFF475569)),
+              title: const Text(
+                'Salin Teks',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _copyToClipboard(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _shouldShowNoteText() {
+    final trimmed = reply.note.trim();
+    if (trimmed.isEmpty) return false;
+    if (trimmed == '[Lampiran]') return false;
+    final hasAttachments = reply.attachments != null && reply.attachments!.isNotEmpty;
+    if (hasAttachments && isAttachmentPlaceholderNote(trimmed)) return false;
+    return true;
+  }
+
+  Widget _buildEditedBadge({required Color color}) {
+    if (!reply.isEdited) return const SizedBox.shrink();
+    final label = Text(
+      '(diedit)',
+      style: TextStyle(
+        fontSize: 10,
+        fontStyle: FontStyle.italic,
+        color: color,
+      ),
+    );
+    if (reply.editedAt == null) return label;
+    return Tooltip(
+      message: 'Diedit ${formatDateTime(reply.editedAt, pattern: 'dd MMM yyyy, HH:mm')}',
+      child: label,
     );
   }
 
@@ -387,7 +537,7 @@ class ChatBubble extends StatelessWidget {
                     children: [
                       if (reply.attachments != null && reply.attachments!.isNotEmpty)
                         _buildAttachments(context, reply.attachments!, false),
-                      if (reply.note.isNotEmpty && reply.note != '[Lampiran]')
+                      if (_shouldShowNoteText())
                         Text(
                           reply.note,
                           style: const TextStyle(
@@ -399,9 +549,18 @@ class ChatBubble extends StatelessWidget {
                       const SizedBox(height: 4),
                       Align(
                         alignment: Alignment.bottomRight,
-                        child: Text(
-                          formatDateTime(reply.createdAt, pattern: 'HH:mm'),
-                          style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (reply.isEdited) ...[
+                              _buildEditedBadge(color: const Color(0xFF64748B)),
+                              const SizedBox(width: 5),
+                            ],
+                            Text(
+                              formatDateTime(reply.createdAt, pattern: 'HH:mm'),
+                              style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -416,14 +575,77 @@ class ChatBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildMyBubble(BuildContext context) {
+  Widget _buildMyBubble(BuildContext context, {required bool canEdit}) {
+    final bubbleCard = Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF00768C), Color(0xFF008EA8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(18),
+          topRight: Radius.circular(4),
+          bottomLeft: Radius.circular(18),
+          bottomRight: Radius.circular(18),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00768C).withValues(alpha: 0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (reply.attachments != null && reply.attachments!.isNotEmpty)
+            _buildAttachments(context, reply.attachments!, true),
+          if (_shouldShowNoteText())
+            Text(
+              reply.note,
+              style: const TextStyle(
+                fontSize: 13.5,
+                color: Colors.white,
+                height: 1.35,
+              ),
+            ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (reply.isEdited) ...[
+                _buildEditedBadge(color: Colors.white.withValues(alpha: 0.85)),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                formatDateTime(reply.createdAt, pattern: 'HH:mm'),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.white.withValues(alpha: 0.85),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.done_all_rounded,
+                size: 14,
+                color: Colors.white.withValues(alpha: 0.85),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
     return GestureDetector(
-      onLongPress: () => _copyToClipboard(context),
+      onLongPress: () => _showBubbleActions(context, canEdit: canEdit),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          const SizedBox(width: 44), // Left spacing
+          SizedBox(width: canEdit ? 8 : 44), // Left spacing
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -439,63 +661,27 @@ class ChatBubble extends StatelessWidget {
                     ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF00768C), Color(0xFF008EA8)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(18),
-                      topRight: Radius.circular(4),
-                      bottomLeft: Radius.circular(18),
-                      bottomRight: Radius.circular(18),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF00768C).withValues(alpha: 0.25),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      if (reply.attachments != null && reply.attachments!.isNotEmpty)
-                        _buildAttachments(context, reply.attachments!, true),
-                      if (reply.note.isNotEmpty && reply.note != '[Lampiran]')
-                        Text(
-                          reply.note,
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            color: Colors.white,
-                            height: 1.35,
-                          ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (canEdit) ...[
+                      IconButton(
+                        onPressed: () => onEdit?.call(reply),
+                        icon: const Icon(Icons.edit_outlined, size: 15),
+                        color: const Color(0xFF64748B),
+                        tooltip: 'Edit komentar',
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
                         ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            formatDateTime(reply.createdAt, pattern: 'HH:mm'),
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.white.withValues(alpha: 0.8),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.done_all_rounded,
-                            size: 14,
-                            color: Colors.white.withValues(alpha: 0.85),
-                          ),
-                        ],
+                        visualDensity: VisualDensity.compact,
                       ),
+                      const SizedBox(width: 4),
                     ],
-                  ),
+                    Flexible(child: bubbleCard),
+                  ],
                 ),
               ],
             ),

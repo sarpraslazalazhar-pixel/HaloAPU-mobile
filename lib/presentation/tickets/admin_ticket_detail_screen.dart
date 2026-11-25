@@ -19,11 +19,15 @@ import 'providers/admin_ticket_provider.dart';
 import 'package:halo_apu_mobile/presentation/dashboard/providers/csat_provider.dart';
 import 'widgets/ticket_status_timeline.dart';
 import 'widgets/chat_bubble.dart';
+import 'widgets/edit_comment_sheet.dart';
 import 'widgets/ticket_sla_card.dart';
+import 'widgets/equipment_loan_card.dart';
+import 'widgets/handover_asset_sheet.dart';
 import 'widgets/return_asset_sheet.dart';
 import 'widgets/revision_request_sheet.dart';
 import 'widgets/ticket_edit_form_sheet.dart';
 import 'widgets/ticket_edit_history_banner.dart';
+import 'widgets/ticket_work_hours_notice.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_edit_history_model.dart';
 import 'package:halo_apu_mobile/presentation/dashboard/providers/monitor_provider.dart';
 
@@ -47,9 +51,12 @@ class _AdminTicketDetailScreenState
   bool _canAssignOperator = false;
   bool _isTimelineCollapsed = true;
   bool _showQuickRepliesBar = true;
+  int? _currentAdminId;
   String _currentAdminName = '';
   Timer? _pollingTimer;
   bool _isSilentRefreshing = false;
+  int _detailEpoch = 0;
+  bool _pendingForcedRefresh = false;
   final GlobalKey _chatBottomKey = GlobalKey();
   final FocusNode _chatFocusNode = FocusNode();
   final TextEditingController _messageController = TextEditingController();
@@ -62,6 +69,14 @@ class _AdminTicketDetailScreenState
   bool _hasActiveBooking = false;
   bool _canEditForm = false;
   List<TicketEditHistoryModel> _editHistories = const [];
+  TicketWorkHoursInfo? _workHours;
+  bool _isResumingWork = false;
+  bool get _canCancelPausedFromOpen =>
+      _ticket.status == TicketStatus.pending &&
+      _workHours?.reason == 'paused' &&
+      _workHours?.resumeStatus == 'open';
+  bool get _statusLockedByWorkHours => _workHours?.resumeStatus != null;
+
   int _maxRevisions = 5;
   int _revisionCount = 0;
   bool _isResultAccepted = false;
@@ -95,27 +110,42 @@ class _AdminTicketDetailScreenState
   void _startPolling() {
     _pollingTimer?.cancel();
     _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (mounted && _tabController.index == 0 && !_isLoadingDetail && !_isSending && !_isSilentRefreshing) {
+      if (mounted && (_tabController.index == 0 || _workHours != null) && !_isLoadingDetail && !_isSending && !_isSilentRefreshing) {
         _silentRefreshTicketDetail();
       }
     });
   }
 
-  Future<void> _silentRefreshTicketDetail() async {
-    if (_isSilentRefreshing) return;
+  Future<void> _silentRefreshTicketDetail({bool force = false}) async {
+    if (_isSilentRefreshing) {
+      if (force) _pendingForcedRefresh = true;
+      return;
+    }
     _isSilentRefreshing = true;
+    final startEpoch = _detailEpoch;
     try {
       final result = await _ticketService.getTicketDetail(_ticket.id);
-      if (mounted && result['success'] == true && result['data'] is Map) {
+      if (!mounted) return;
+      if (startEpoch != _detailEpoch) {
+        _pendingForcedRefresh = true;
+        return;
+      }
+      if (result['success'] == true && result['data'] is Map) {
         final data = Map<String, dynamic>.from(result['data'] as Map);
         final cacheKey = CacheService.ticketDetailKey(_ticket.id);
         await CacheService.put(cacheKey, data, ttlSeconds: 600);
-        if (mounted) _applyDetailData(data);
+        if (mounted && startEpoch == _detailEpoch) {
+          _applyDetailData(data);
+        }
       }
     } catch (e) {
       debugPrint('Silent refresh detail gagal: $e');
     } finally {
       _isSilentRefreshing = false;
+      if (_pendingForcedRefresh && mounted) {
+        _pendingForcedRefresh = false;
+        unawaited(_silentRefreshTicketDetail());
+      }
     }
   }
 
@@ -141,6 +171,7 @@ class _AdminTicketDetailScreenState
           setState(() {
             _isSuperAdmin = isSuper;
             _canAssignOperator = canAssign;
+            _currentAdminId = int.tryParse((userData['id'] ?? '').toString());
             _currentAdminName = userData['name']?.toString() ?? userData['username']?.toString() ?? '';
           });
         }
@@ -149,6 +180,7 @@ class _AdminTicketDetailScreenState
   }
 
   void _applyDetailData(Map<String, dynamic> data) {
+    _detailEpoch++;
     void apply() {
       try {
         _ticket = TicketModel.safeFromJson(data);
@@ -183,6 +215,7 @@ class _AdminTicketDetailScreenState
       _revisionCount = int.tryParse((data['revisionCount'] ?? data['revision_count'] ?? 0).toString()) ?? 0;
       _isResultAccepted = (data['isResultAccepted'] ?? data['is_result_accepted']) == true;
       _isRevisionEnabled = (data['isRevisionEnabled'] ?? data['is_revision_enabled']) == true;
+      _workHours = TicketWorkHoursInfo.fromJson(data['work_hours'] ?? data['workHours']);
     }
 
     if (mounted) {
@@ -284,6 +317,7 @@ class _AdminTicketDetailScreenState
       attachments: _replyAttachments.isNotEmpty ? _replyAttachments : null,
     );
     if (result['success']) {
+      _detailEpoch++;
       final reply = TicketReply.fromJson(result['data']);
       _applyTicket(
         _ticket.copyWith(
@@ -300,6 +334,31 @@ class _AdminTicketDetailScreenState
       }
     }
     if (mounted) setState(() => _isSending = false);
+  }
+
+  Future<void> _showEditCommentSheet(TicketReply reply) async {
+    final updated = await EditCommentSheet.show(
+      context,
+      ticketId: _ticket.id,
+      reply: reply,
+      ticketService: _ticketService,
+    );
+    if (updated == null || !mounted) return;
+
+    _detailEpoch++;
+    final updatedLogs = (_ticket.logs ?? const <TicketReply>[])
+        .map((item) => item.id == updated.id ? updated : item)
+        .toList();
+    _applyTicket(_ticket.copyWith(logs: updatedLogs));
+    unawaited(_silentRefreshTicketDetail(force: true));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Komentar berhasil diperbarui'),
+        backgroundColor: AppTheme.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   void _showCsatBottomSheet() {
@@ -690,7 +749,37 @@ class _AdminTicketDetailScreenState
     }
   }
 
+  Future<void> _resumeWork() async {
+    if (_isResumingWork) return;
+    setState(() => _isResumingWork = true);
+
+    final result = await _ticketService.resumeWork(_ticket.id);
+    if (!mounted) return;
+
+    setState(() => _isResumingWork = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result['message']?.toString() ??
+            (result['success'] == true ? 'Tiket dilanjutkan' : 'Gagal melanjutkan tiket')),
+        backgroundColor: result['success'] == true ? AppTheme.success : AppTheme.danger,
+      ),
+    );
+
+    if (result['success'] == true) {
+      await CacheService.remove(CacheService.ticketDetailKey(_ticket.id));
+      await _loadTicketDetail();
+      ref.read(adminTicketProvider.notifier).refresh();
+    }
+  }
+
   void _showStatusSheet() {
+    if (_workHours != null && _workHours!.resumeStatus != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gunakan Lanjutkan Tiket setelah jam kerja buka.')),
+      );
+      return;
+    }
+
     final availableStatuses = _validTransitions[_ticket.status] ?? [];
     
     if (availableStatuses.isEmpty) {
@@ -1624,12 +1713,14 @@ class _AdminTicketDetailScreenState
               icon: const Icon(Icons.assignment_ind_outlined, color: Color(0xFF4F46E5), size: 22),
               onPressed: _showAssignOperatorSheet,
             ),
-          IconButton(
-            tooltip: 'Ubah Status',
-            icon: const Icon(Icons.sync_alt_rounded, color: Color(0xFF00768C), size: 22),
-            onPressed: _showStatusSheet,
-          ),
+          if (!_statusLockedByWorkHours)
+            IconButton(
+              tooltip: 'Ubah Status',
+              icon: const Icon(Icons.sync_alt_rounded, color: Color(0xFF00768C), size: 22),
+              onPressed: _showStatusSheet,
+            ),
           if ((_ticket.status == TicketStatus.open && (_isSubmittedByMe || _isSuperAdmin)) ||
+              _canCancelPausedFromOpen ||
               _hasActiveBooking)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF1E293B)),
@@ -1641,7 +1732,8 @@ class _AdminTicketDetailScreenState
                 }
               },
               itemBuilder: (ctx) => [
-                if (_ticket.status == TicketStatus.open && (_isSubmittedByMe || _isSuperAdmin))
+                if ((_ticket.status == TicketStatus.open || _canCancelPausedFromOpen) &&
+                    (_isSubmittedByMe || _isSuperAdmin))
                   PopupMenuItem(
                     value: 'cancel_ticket',
                     child: Row(
@@ -1685,6 +1777,16 @@ class _AdminTicketDetailScreenState
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Column(
                   children: [
+                    if (_workHours != null) ...[
+                      TicketWorkHoursNotice(
+                        info: _workHours!,
+                        isAdmin: true,
+                        resuming: _isResumingWork,
+                        onContact: () => _tabController.animateTo(0),
+                        onResume: _workHours!.canResume ? _resumeWork : null,
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                     TicketEditHistoryBanner(histories: _editHistories),
                     TicketStatusTimeline(
                       ticket: _ticket,
@@ -1694,7 +1796,7 @@ class _AdminTicketDetailScreenState
                     ),
                     const SizedBox(height: 10),
                     TicketSlaCard(ticket: _ticket),
-                    _buildAssetReturnCard(),
+                    _buildEquipmentLoanCard(),
                     _buildPrioritySelector(),
                   ],
                 ),
@@ -2293,6 +2395,10 @@ class _AdminTicketDetailScreenState
     final List<Widget> items = [];
     DateTime? lastDate;
 
+    final isTicketClosed = _ticket.status == TicketStatus.solved ||
+        _ticket.status == TicketStatus.rejected ||
+        _ticket.status == TicketStatus.cancelled;
+
     for (int i = 0; i < reversedLogs.length; i++) {
       final reply = reversedLogs[i];
       final localDate = reply.createdAt.toLocal();
@@ -2329,7 +2435,10 @@ class _AdminTicketDetailScreenState
           reply: reply,
           isCurrentUserAdmin: true,
           requesterName: _ticket.requesterName,
+          currentAdminId: _currentAdminId,
           currentAdminName: _currentAdminName,
+          isTicketClosed: isTicketClosed,
+          onEdit: _showEditCommentSheet,
         ),
       );
     }
@@ -2640,7 +2749,8 @@ class _AdminTicketDetailScreenState
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Expanded(
+                  if (!_statusLockedByWorkHours)
+                    Expanded(
                     child: OutlinedButton.icon(
                       onPressed: _showStatusSheet,
                       icon: const Icon(Icons.sync_alt_rounded, size: 16),
@@ -2689,231 +2799,42 @@ class _AdminTicketDetailScreenState
       ),
     );
   }
-  Widget _buildAssetReturnCard() {
+  Widget _buildEquipmentLoanCard() {
     if (!_ticket.isPengembalianAlat) return const SizedBox.shrink();
-
-    final isSolved = _ticket.status == TicketStatus.solved;
-    if (!isSolved) return const SizedBox.shrink();
-
-    final isReturned = _ticket.isSudahDikembalikan;
-
-    // Kalau kendaraan sudah lewati waktu pas sudah selesai, hilangkan tombol/kartu kembalikan aset
-    if (!isReturned && _ticket.isKendaraan && _ticket.isSchedulePast) {
+    if (_ticket.status == TicketStatus.rejected ||
+        _ticket.status == TicketStatus.cancelled) {
       return const SizedBox.shrink();
     }
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isReturned
-              ? AppTheme.success.withValues(alpha: 0.35)
-              : AppTheme.warning.withValues(alpha: 0.4),
-          width: 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: AnimatedSize(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    color: (isReturned ? AppTheme.success : AppTheme.warning)
-                        .withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Icon(
-                    isReturned ? Icons.task_alt_rounded : Icons.assignment_return_outlined,
-                    size: 17,
-                    color: isReturned ? AppTheme.success : AppTheme.warning,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Status Pengembalian Alat',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isReturned
-                            ? 'Alat telah diterima kembali'
-                            : 'Tiket selesai, alat belum dikembalikan',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppTheme.slateGrey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (isReturned)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.success.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppTheme.success.withValues(alpha: 0.25),
-                        width: 1.0,
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.check_rounded, size: 12, color: AppTheme.success),
-                        SizedBox(width: 3),
-                        Text(
-                          'Sudah Dikembalikan',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.success,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-            if (isReturned) ...[
-              const SizedBox(height: 10),
-              const Divider(height: 1, color: Color(0xFFF1F5F9)),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFF1F5F9)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_ticket.kondisiKembali != null)
-                      Row(
-                        children: [
-                          const Icon(Icons.verified_outlined, size: 14, color: AppTheme.slateGrey),
-                          const SizedBox(width: 6),
-                          const Text('Kondisi: ',
-                              style: TextStyle(fontSize: 11.5, color: AppTheme.slateGrey)),
-                          Text(
-                            _ticket.kondisiKembali!,
-                            style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF334155)),
-                          ),
-                        ],
-                      ),
-                    if (_ticket.catatanKembali != null &&
-                        _ticket.catatanKembali!.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: AppTheme.slateGrey),
-                          const SizedBox(width: 6),
-                          const Text('Catatan: ',
-                              style: TextStyle(fontSize: 11.5, color: AppTheme.slateGrey)),
-                          Expanded(
-                            child: Text(
-                              _ticket.catatanKembali!,
-                              style: const TextStyle(
-                                  fontSize: 11.5, color: Color(0xFF334155)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    if (_ticket.dikembalikanAtFormatted != null) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.schedule_rounded, size: 14, color: AppTheme.slateGrey),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Waktu: ${_ticket.dikembalikanAtFormatted}',
-                            style: const TextStyle(fontSize: 11, color: AppTheme.slateGrey),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ] else ...[
-              if (!(_ticket.isKendaraan && _ticket.isSchedulePast)) ...[
-                const SizedBox(height: 12),
-                Material(
-                  color: AppTheme.oceanWater,
-                  borderRadius: BorderRadius.circular(10),
-                  child: InkWell(
-                    onTap: _handleKembalikanAlat,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      height: 40,
-                      alignment: Alignment.center,
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.assignment_return_outlined, size: 16, color: Colors.white),
-                          SizedBox(width: 6),
-                          Text(
-                            'Tandai Alat Dikembalikan',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ],
-        ),
-      ),
+    // Untuk peminjaman kendaraan yang jadwalnya sudah lewat dan belum dikembalikan, pertahankan aturan sembunyi.
+    if (!_ticket.isSudahDikembalikan &&
+        _ticket.isKendaraan &&
+        _ticket.isSchedulePast) {
+      return const SizedBox.shrink();
+    }
+
+    return EquipmentLoanCard(
+      ticket: _ticket,
+      canManage: _ticket.canSerahkan || _ticket.canKembalikan,
+      onHandover: _handleSerahkanAlat,
+      onReturn: _handleKembalikanAlat,
     );
   }
 
-  Future<void> _handleKembalikanAlat() async {
-    await ReturnAssetSheet.show(
+  Future<void> _handleSerahkanAlat() async {
+    await HandoverAssetSheet.show(
       context,
       ticketId: _ticket.id,
-      onConfirm: (kondisi, catatan) async {
-        final res = await _ticketService.kembalikanAlat(
+      borrowerName: _ticket.requesterName,
+      equipmentText: _ticket.alatText,
+      scheduleText: _ticket.rentangWaktu,
+      onConfirm: (penerimaUserId, kondisi, catatan, attachments) async {
+        final res = await _ticketService.serahkanAlat(
           _ticket.id,
+          penerimaUserId: penerimaUserId,
           kondisi: kondisi,
           catatan: catatan,
+          attachments: attachments,
         );
         if (!mounted) return false;
         if (res['success'] == true) {
@@ -2929,7 +2850,7 @@ class _AdminTicketDetailScreenState
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      res['message'] ?? 'Alat berhasil dikembalikan',
+                      res['message']?.toString() ?? 'Alat berhasil ditandai sudah diserahkan',
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                     ),
                   ),
@@ -2937,6 +2858,7 @@ class _AdminTicketDetailScreenState
               ),
             ),
           );
+          await _invalidateTicketCaches();
           ref.read(adminTicketProvider.notifier).refresh();
           ref.read(monitorProvider.notifier).refresh();
           await _loadTicketDetail();
@@ -2954,7 +2876,76 @@ class _AdminTicketDetailScreenState
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      res['message'] ?? 'Gagal menandai pengembalian alat',
+                      res['message']?.toString() ?? 'Gagal menandai serah-terima alat',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+          return false;
+        }
+      },
+    );
+  }
+
+  Future<void> _handleKembalikanAlat() async {
+    await ReturnAssetSheet.show(
+      context,
+      ticketId: _ticket.id,
+      hasHandedOver: _ticket.isSudahDiserahkan,
+      borrowerName: _ticket.requesterName,
+      equipmentText: _ticket.alatText,
+      scheduleText: _ticket.rentangWaktu,
+      onConfirm: (kondisi, catatan, attachments) async {
+        final res = await _ticketService.kembalikanAlat(
+          _ticket.id,
+          kondisi: kondisi,
+          catatan: catatan,
+          attachments: attachments,
+        );
+        if (!mounted) return false;
+        if (res['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.all(16),
+              backgroundColor: AppTheme.success,
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      res['message']?.toString() ?? 'Alat berhasil dikembalikan',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+          await _invalidateTicketCaches();
+          ref.read(adminTicketProvider.notifier).refresh();
+          ref.read(monitorProvider.notifier).refresh();
+          await _loadTicketDetail();
+          return true;
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.all(16),
+              backgroundColor: AppTheme.danger,
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      res['message']?.toString() ?? 'Gagal menandai pengembalian alat',
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                     ),
                   ),

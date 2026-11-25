@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/core/services/ticket_service.dart';
+import 'package:halo_apu_mobile/core/utils/dynamic_form_helper.dart';
 
 const List<String> kTicketPriorities = ['Rendah', 'Sedang', 'Tinggi', 'Urgen'];
 const Set<String> _nonEditableTypes = {'upload_gambar', 'upload_file', 'info_peraturan'};
@@ -91,22 +92,14 @@ class _TicketEditFormSheetState extends State<TicketEditFormSheet> {
     });
   }
 
-  List<Map<String, dynamic>> get _editableFields =>
-      widget.formFields.where((f) {
-        if (_nonEditableTypes.contains(f['type']?.toString())) return false;
+  List<Map<String, dynamic>> get _editableFields {
+    final visible = widget.formFields.where((f) {
+      if (_nonEditableTypes.contains(f['type']?.toString())) return false;
+      return DynamicFormHelper.isFieldVisible(f, _formData, widget.formFields);
+    }).toList();
 
-        final parentId = (f['parentFieldId'] ?? f['parent_field_id'])?.toString();
-        if (parentId == null || parentId.isEmpty) return true;
-
-        final parentValue = _formData[parentId];
-        final trigger = (f['triggerValue'] ?? f['trigger_value'])?.toString().trim().toLowerCase().replaceAll(RegExp(r'[:\s]+$'), '');
-        if (trigger == null) return false;
-
-        if (parentValue is List) {
-          return parentValue.any((v) => v.toString().trim().toLowerCase().replaceAll(RegExp(r'[:\s]+$'), '') == trigger);
-        }
-        return (parentValue ?? '').toString().trim().toLowerCase().replaceAll(RegExp(r'[:\s]+$'), '') == trigger;
-      }).toList();
+    return DynamicFormHelper.orderFieldsTree(visible);
+  }
 
   @override
   Widget build(BuildContext context) {

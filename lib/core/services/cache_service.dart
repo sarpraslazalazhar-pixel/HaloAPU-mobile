@@ -169,11 +169,18 @@ class CacheService {
   }
 
   /// Menghasilkan cache key untuk query daftar tiket berdasarkan filter.
-  static String ticketListKey({String? tab, String? status, String? search, int page = 1}) {
+  static String ticketListKey({
+    String? tab,
+    String? loanStage,
+    String? status,
+    String? search,
+    int page = 1,
+  }) {
     final cleanTab = tab ?? 'all';
+    final cleanStage = loanStage ?? 'none';
     final cleanStatus = status ?? 'all';
     final cleanSearch = search?.trim() ?? '';
-    return 'ticket_list_tab_${cleanTab}_status_${cleanStatus}_search_${cleanSearch}_page_$page';
+    return 'ticket_list_tab_${cleanTab}_stage_${cleanStage}_status_${cleanStatus}_search_${cleanSearch}_page_$page';
   }
 
   /// Menghasilkan cache key untuk detail tiket berdasarkan [id].

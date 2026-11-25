@@ -2,15 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:halo_apu_mobile/core/utils/date_formatter.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
+import 'loan_sheet_components.dart';
 
 class TicketCard extends StatelessWidget {
   final TicketModel ticket;
   final VoidCallback onTap;
+  final bool showLoanDetails;
+  final VoidCallback? onQuickHandover;
+  final VoidCallback? onQuickReturn;
 
   const TicketCard({
     super.key,
     required this.ticket,
     required this.onTap,
+    this.showLoanDetails = false,
+    this.onQuickHandover,
+    this.onQuickReturn,
   });
 
   (Color bg, Color text, IconData icon) _getStatusVisual(TicketStatus status) {
@@ -322,6 +329,11 @@ class TicketCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
 
+                if (showLoanDetails) ...[
+                  const SizedBox(height: 10),
+                  _buildLoanSummarySection(),
+                ],
+
                 const SizedBox(height: 12),
 
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
@@ -413,6 +425,232 @@ class TicketCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLoanSummarySection() {
+    final loanPill = resolveLoanStatusVisual(ticket);
+    final serahCount = ticket.lampiranSerah.length;
+    final kembaliCount = ticket.lampiranKembali.length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: loanPill.bg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: loanPill.border),
+                ),
+                child: Text(
+                  loanPill.label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: loanPill.fg,
+                  ),
+                ),
+              ),
+              if (ticket.rentangWaktu != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.calendar_today_outlined,
+                      size: 12,
+                      color: AppTheme.slateGrey,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      ticket.rentangWaktu!,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.slateGrey,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          if (ticket.alatText != null && ticket.alatText != '-') ...[
+            const SizedBox(height: 6),
+            Text(
+              ticket.alatText!,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1E293B),
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (ticket.kondisiSerah != null ||
+              ticket.kondisiKembali != null ||
+              serahCount > 0 ||
+              kembaliCount > 0) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (ticket.kondisiSerah != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Serah: ',
+                        style: TextStyle(fontSize: 11, color: AppTheme.slateGrey),
+                      ),
+                      LoanConditionBadge(kondisi: ticket.kondisiSerah),
+                    ],
+                  ),
+                if (ticket.kondisiKembali != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Kembali: ',
+                        style: TextStyle(fontSize: 11, color: AppTheme.slateGrey),
+                      ),
+                      LoanConditionBadge(kondisi: ticket.kondisiKembali),
+                    ],
+                  ),
+                if (serahCount > 0 || kembaliCount > 0)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.attach_file_rounded,
+                        size: 13,
+                        color: AppTheme.slateGrey,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        'Lampiran: ${serahCount + kembaliCount}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.slateGrey,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ],
+          if ((ticket.canSerahkan && onQuickHandover != null) ||
+              (ticket.canKembalikan && onQuickReturn != null)) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                if (ticket.canSerahkan && onQuickHandover != null)
+                  Expanded(
+                    child: SizedBox(
+                      height: 36,
+                      child: ElevatedButton.icon(
+                        onPressed: onQuickHandover,
+                        icon: const Icon(Icons.inventory_2_outlined, size: 15),
+                        label: const Text(
+                          'Serahkan',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0284C7),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          minimumSize: const Size(0, 36),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (ticket.canSerahkan &&
+                    onQuickHandover != null &&
+                    ticket.canKembalikan &&
+                    onQuickReturn != null)
+                  const SizedBox(width: 8),
+                if (ticket.canKembalikan && onQuickReturn != null)
+                  Expanded(
+                    child: SizedBox(
+                      height: 36,
+                      child: ticket.canSerahkan
+                          ? OutlinedButton.icon(
+                              onPressed: onQuickReturn,
+                              icon: const Icon(
+                                Icons.check_circle_outline_rounded,
+                                size: 15,
+                              ),
+                              label: const Text(
+                                'Kembalikan',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF047857),
+                                side: const BorderSide(color: Color(0xFF6EE7B7)),
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                minimumSize: const Size(0, 36),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            )
+                          : ElevatedButton.icon(
+                              onPressed: onQuickReturn,
+                              icon: const Icon(
+                                Icons.check_circle_outline_rounded,
+                                size: 15,
+                              ),
+                              label: const Text(
+                                'Kembalikan',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF059669),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                minimumSize: const Size(0, 36),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -45,9 +45,23 @@ sealed class TicketModel with _$TicketModel {
     map['createdAt'] = parseToLocal(rawCreatedAt).toIso8601String();
     const extraKeys = [
       'priority',
+      'diserahkan_at',
+      'diserahkan_oleh',
+      'penerima_alat',
+      'penerima_alat_user_id',
+      'kondisi_serah',
+      'catatan_serah',
       'dikembalikan_at',
+      'diterima_kembali_oleh',
       'kondisi_kembali',
       'catatan_kembali',
+      'status_peminjaman',
+      'alat_text',
+      'rentang_waktu',
+      'can_serahkan',
+      'can_kembalikan',
+      'lampiran_serah',
+      'lampiran_kembali',
       'wajib_kembali',
       'sla_response_time',
       'sla_resolution_time',
@@ -136,6 +150,33 @@ sealed class TicketModel with _$TicketModel {
     }
     return TicketModel.fromJson(map);
   }
+
+  /// Menormalisasi nilai kondisi alat ke nilai kanonis backend:
+  /// `'baik'`, `'tidak_lengkap'`, atau `'rusak'`.
+  static String normalizeKondisiKey(String? raw) {
+    final normalized = (raw ?? '')
+        .trim()
+        .toLowerCase()
+        .replaceAll('-', '_')
+        .replaceAll(' ', '_');
+    if (normalized == 'rusak') return 'rusak';
+    if (normalized == 'tidak_lengkap' || normalized == 'kurang_lengkap') {
+      return 'tidak_lengkap';
+    }
+    return 'baik';
+  }
+
+  /// Mengubah nilai kondisi alat menjadi label ramah pengguna.
+  static String formatKondisiLabel(String? raw) {
+    switch (normalizeKondisiKey(raw)) {
+      case 'rusak':
+        return 'Rusak';
+      case 'tidak_lengkap':
+        return 'Kurang Lengkap';
+      default:
+        return 'Bagus (Baik)';
+    }
+  }
 }
 
 @freezed
@@ -145,8 +186,11 @@ sealed class TicketReply with _$TicketReply {
     required String action,
     required String note,
     required DateTime createdAt,
+    int? adminId,
     String? adminName,
     required bool isFromAdmin,
+    @Default(false) bool isEdited,
+    DateTime? editedAt,
     List<Map<String, dynamic>>? attachments,
   }) = _TicketReply;
 
@@ -155,9 +199,37 @@ sealed class TicketReply with _$TicketReply {
     map['id'] = map['id'] is int ? map['id'] : (int.tryParse(map['id']?.toString() ?? '0') ?? 0);
     map['action'] = (map['action'] ?? map['aksi'] ?? '').toString();
     map['note'] = (map['note'] ?? map['catatan'] ?? '').toString();
-    final rawCreatedAt = map['createdAt'] ?? map['created_at'];
+    final rawCreatedAt = map['createdAt'] ?? map['created_at'] ?? map['timestamp'];
     map['createdAt'] = parseToLocal(rawCreatedAt).toIso8601String();
-    map['isFromAdmin'] = map['isFromAdmin'] == true || map['is_from_admin'] == true;
+
+    final rawAdminId = map['adminId'] ?? map['admin_id'];
+    final int? parsedAdminId = rawAdminId is int
+        ? rawAdminId
+        : int.tryParse(rawAdminId?.toString() ?? '');
+    map['adminId'] = parsedAdminId;
+
+    final rawAdminName = map['adminName'] ??
+        map['admin_name'] ??
+        (map['admin'] is Map
+            ? (map['admin']['name'] ?? map['admin']['username'])
+            : null);
+    map['adminName'] = rawAdminName?.toString();
+
+    final rawIsFromAdmin = map['isFromAdmin'] ?? map['is_from_admin'];
+    map['isFromAdmin'] = rawIsFromAdmin == true ||
+        rawIsFromAdmin == 1 ||
+        rawIsFromAdmin?.toString() == '1' ||
+        parsedAdminId != null;
+
+    final rawIsEdited = map['is_edited'] ?? map['isEdited'];
+    map['isEdited'] = rawIsEdited == true ||
+        rawIsEdited == 1 ||
+        rawIsEdited?.toString() == '1';
+
+    final parsedEditedAt =
+        _tryParseOptionalLocalDate(map['edited_at'] ?? map['editedAt']);
+    map['editedAt'] = parsedEditedAt?.toIso8601String();
+
     if (map['attachments'] is List) {
       map['attachments'] = (map['attachments'] as List)
           .map((a) => a is Map ? Map<String, dynamic>.from(a) : null)
@@ -168,14 +240,33 @@ sealed class TicketReply with _$TicketReply {
   }
 }
 
+DateTime? _tryParseOptionalLocalDate(dynamic val) {
+  if (val == null) return null;
+  if (val is DateTime) return val.toLocal();
+  final s = val.toString().trim();
+  if (s.isEmpty || s == 'null') return null;
+  final hasTime = s.contains('T') || s.contains(' ');
+  final hasZ = s.contains('Z') || s.contains('z');
+  final hasOffset = hasTime && RegExp(r'[+-]\d{2}(?::?\d{2})?$').hasMatch(s);
+  final normalized = (!hasZ && !hasOffset && hasTime)
+      ? '${s.replaceFirst(' ', 'T')}Z'
+      : s;
+  return DateTime.tryParse(normalized)?.toLocal();
+}
+
 // TicketReply punya fromJson kustom, jadi generator tidak membuat helper-nya.
 TicketReply _$TicketReplyFromJson(Map<String, dynamic> json) => TicketReply(
       id: json['id'] as int,
       action: json['action'] as String,
       note: json['note'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      adminId: json['adminId'] as int?,
       adminName: json['adminName'] as String?,
       isFromAdmin: json['isFromAdmin'] as bool,
+      isEdited: json['isEdited'] as bool? ?? false,
+      editedAt: json['editedAt'] != null
+          ? DateTime.parse(json['editedAt'] as String)
+          : null,
       attachments: (json['attachments'] as List<dynamic>?)
           ?.map((e) => e as Map<String, dynamic>)
           .toList(),
@@ -185,6 +276,8 @@ extension TicketModelX on TicketModel {
   String? get priority => parsedFormData?['priority']?.toString();
   bool get isPengembalianAlat =>
       parsedFormData?['wajib_kembali'] == true ||
+      parsedFormData?['status_peminjaman'] != null ||
+      parsedFormData?['diserahkan_at'] != null ||
       category.toLowerCase().contains('peminjaman') ||
       title.toLowerCase().contains('peminjaman') ||
       parsedFormData?['dikembalikan_at'] != null;
@@ -290,10 +383,45 @@ extension TicketModelX on TicketModel {
     return false;
   }
 
+  static String? _nonEmptyString(dynamic value) {
+    if (value == null) return null;
+    final str = value.toString().trim();
+    return str.isEmpty ? null : str;
+  }
+
+  static List<Map<String, dynamic>> _parseAttachmentList(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  bool get isSudahDiserahkan => parsedFormData?['diserahkan_at'] != null;
+  String? get diserahkanAtFormatted => _nonEmptyString(parsedFormData?['diserahkan_at']);
+  String? get diserahkanOleh => _nonEmptyString(parsedFormData?['diserahkan_oleh']);
+  String? get penerimaAlat => _nonEmptyString(parsedFormData?['penerima_alat']);
+  int? get penerimaAlatUserId {
+    final val = parsedFormData?['penerima_alat_user_id'];
+    if (val is int) return val;
+    return int.tryParse(val?.toString() ?? '');
+  }
+  String? get kondisiSerah => _nonEmptyString(parsedFormData?['kondisi_serah']);
+  String? get catatanSerah => _nonEmptyString(parsedFormData?['catatan_serah']);
   bool get isSudahDikembalikan => parsedFormData?['dikembalikan_at'] != null;
-  String? get dikembalikanAtFormatted => parsedFormData?['dikembalikan_at']?.toString();
-  String? get kondisiKembali => parsedFormData?['kondisi_kembali']?.toString();
-  String? get catatanKembali => parsedFormData?['catatan_kembali']?.toString();
+  String? get dikembalikanAtFormatted => _nonEmptyString(parsedFormData?['dikembalikan_at']);
+  String? get diterimaKembaliOleh => _nonEmptyString(parsedFormData?['diterima_kembali_oleh']);
+  String? get kondisiKembali => _nonEmptyString(parsedFormData?['kondisi_kembali']);
+  String? get catatanKembali => _nonEmptyString(parsedFormData?['catatan_kembali']);
+  String? get statusPeminjaman => _nonEmptyString(parsedFormData?['status_peminjaman']);
+  String? get alatText => _nonEmptyString(parsedFormData?['alat_text']);
+  String? get rentangWaktu => _nonEmptyString(parsedFormData?['rentang_waktu']);
+  bool get canSerahkan => parsedFormData?['can_serahkan'] == true;
+  bool get canKembalikan => parsedFormData?['can_kembalikan'] == true;
+  List<Map<String, dynamic>> get lampiranSerah =>
+      _parseAttachmentList(parsedFormData?['lampiran_serah']);
+  List<Map<String, dynamic>> get lampiranKembali =>
+      _parseAttachmentList(parsedFormData?['lampiran_kembali']);
   String? get slaResponseTime =>
       parsedFormData?['sla_response_time']?.toString() ??
       parsedFormData?['sla_response_deadline']?.toString();
@@ -345,9 +473,23 @@ extension TicketModelX on TicketModel {
 
     const internalKeys = {
       'priority',
+      'diserahkan_at',
+      'diserahkan_oleh',
+      'penerima_alat',
+      'penerima_alat_user_id',
+      'kondisi_serah',
+      'catatan_serah',
       'dikembalikan_at',
+      'diterima_kembali_oleh',
       'kondisi_kembali',
       'catatan_kembali',
+      'status_peminjaman',
+      'alat_text',
+      'rentang_waktu',
+      'can_serahkan',
+      'can_kembalikan',
+      'lampiran_serah',
+      'lampiran_kembali',
       'wajib_kembali',
       'sla_response_time',
       'sla_resolution_time',

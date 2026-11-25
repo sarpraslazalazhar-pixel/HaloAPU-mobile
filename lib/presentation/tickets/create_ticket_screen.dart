@@ -12,6 +12,7 @@ import 'package:halo_apu_mobile/core/services/pending_ticket_service.dart';
 import 'package:halo_apu_mobile/core/providers/connectivity_provider.dart';
 import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import 'package:halo_apu_mobile/core/utils/booking_schedule_validator.dart';
+import 'package:halo_apu_mobile/core/utils/dynamic_form_helper.dart';
 import 'package:halo_apu_mobile/presentation/widgets/shimmer.dart';
 import 'package:halo_apu_mobile/presentation/widgets/offline_banner.dart';
 import 'package:halo_apu_mobile/presentation/widgets/image_doodle_screen.dart';
@@ -182,13 +183,16 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
         _isLoadingFields = false;
         if (result['success']) {
           final List<dynamic> data = result['data'];
+          final List<Map<String, dynamic>> rawFormFields = [];
           for (var field in data) {
             final Map<String, dynamic> mapped = {
               'id': field['id'].toString(),
               'label': field['label'] ?? '',
               'type': field['tipe_field'] ?? 'teks_pendek',
               'required': field['wajib'] == true || field['wajib'] == 1,
-              'options': field['opsi'] is List ? List<String>.from(field['opsi']) : <String>[],
+              'options': field['opsi'] is List
+                  ? (field['opsi'] as List).map((e) => e.toString()).toList()
+                  : <String>[],
               'parent_field_id': field['parent_field_id']?.toString(),
               'trigger_value': field['trigger_value'],
             };
@@ -196,26 +200,17 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
             if (mapped['type'] == 'upload_gambar' || mapped['type'] == 'upload_file') {
               _uploadFields.add(mapped);
             } else {
-              _formFields.add(mapped);
+              rawFormFields.add(mapped);
             }
           }
+          _formFields = DynamicFormHelper.orderFieldsTree(rawFormFields);
         }
       });
     }
   }
 
   bool _isFieldVisible(Map<String, dynamic> field) {
-    if (field['parent_field_id'] != null && field['parent_field_id'] != '') {
-      final parentValue = _formData[field['parent_field_id']];
-      final triggerValue = field['trigger_value'];
-      if (triggerValue is bool) {
-        return parentValue == triggerValue;
-      } else if (triggerValue is String) {
-        return parentValue?.toString() == triggerValue;
-      }
-      return parentValue != null && parentValue != '' && parentValue != false;
-    }
-    return true;
+    return DynamicFormHelper.isFieldVisible(field, _formData, _formFields);
   }
 
   void _nextStep() {
@@ -383,7 +378,7 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
 
     final Map<String, dynamic> formDataPayload = {};
     for (var field in _formFields) {
-      if (_formData.containsKey(field['id'])) {
+      if (_isFieldVisible(field) && _formData.containsKey(field['id'])) {
         formDataPayload[field['id']] = _formData[field['id']];
       }
     }
@@ -914,9 +909,28 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
             const SizedBox(height: 24),
           ],
           ..._formFields.where((f) => _isFieldVisible(f)).map((field) {
+            final isChild = field['parent_field_id'] != null &&
+                field['parent_field_id'].toString().isNotEmpty;
             return Padding(
+              key: ValueKey('field_${field['id']}'),
               padding: const EdgeInsets.only(bottom: 24),
-              child: _buildDynamicField(field),
+              child: isChild
+                  ? Container(
+                      margin: const EdgeInsets.only(left: 10),
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50.withValues(alpha: 0.45),
+                        borderRadius: const BorderRadius.only(
+                          topRight: Radius.circular(12),
+                          bottomRight: Radius.circular(12),
+                        ),
+                        border: Border(
+                          left: BorderSide(color: Colors.orange.shade400, width: 3),
+                        ),
+                      ),
+                      child: _buildDynamicField(field),
+                    )
+                  : _buildDynamicField(field),
             );
           }),
         ],
@@ -968,7 +982,7 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
       case 'checkbox':
         inputWidget = CheckboxListTile(
           title: Text('Ya, ${label.toLowerCase()}', style: const TextStyle(fontSize: 14)),
-          value: _formData[id] ?? false,
+          value: _formData[id] == true,
           onChanged: (val) { setState(() { _formData[id] = val; _saveDraft(); }); },
           controlAffinity: ListTileControlAffinity.leading,
           contentPadding: EdgeInsets.zero,
@@ -976,7 +990,10 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
         );
         break;
       case 'multi_pilih':
-        final selectedList = (_formData[id] as List<String>?) ?? [];
+        final rawSelected = _formData[id];
+        final selectedList = rawSelected is List
+            ? rawSelected.map((e) => e.toString()).toList()
+            : <String>[];
         inputWidget = Column(
           children: options.map((opt) {
             return CheckboxListTile(
@@ -985,7 +1002,9 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
               onChanged: (val) {
                 setState(() {
                   if (val == true) {
-                    _formData[id] = [...selectedList, opt];
+                    if (!selectedList.contains(opt)) {
+                      _formData[id] = [...selectedList, opt];
+                    }
                   } else {
                     _formData[id] = selectedList.where((e) => e != opt).toList();
                   }
@@ -1001,7 +1020,9 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
         break;
       case 'nominal_rp':
       case 'angka':
-        inputWidget = TextField(
+        inputWidget = TextFormField(
+          key: ValueKey('input_$id'),
+          initialValue: _formData[id]?.toString() ?? '',
           keyboardType: TextInputType.number,
           decoration: _inputDecoration().copyWith(
             prefixText: type == 'nominal_rp' ? 'Rp ' : null,
@@ -1128,7 +1149,9 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
         break;
       case 'teks_panjang':
       case 'textarea':
-        inputWidget = TextField(
+        inputWidget = TextFormField(
+          key: ValueKey('input_$id'),
+          initialValue: _formData[id]?.toString() ?? '',
           maxLines: 4,
           decoration: _inputDecoration().copyWith(hintText: 'Ketik di sini...'),
           onChanged: (val) { setState(() { _formData[id] = val; }); _saveDraft(); },
@@ -1137,7 +1160,9 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
       case 'teks_pendek':
       case 'text':
       default:
-        inputWidget = TextField(
+        inputWidget = TextFormField(
+          key: ValueKey('input_$id'),
+          initialValue: _formData[id]?.toString() ?? '',
           maxLines: 1,
           decoration: _inputDecoration().copyWith(hintText: 'Ketik di sini...'),
           onChanged: (val) { setState(() { _formData[id] = val; }); _saveDraft(); },

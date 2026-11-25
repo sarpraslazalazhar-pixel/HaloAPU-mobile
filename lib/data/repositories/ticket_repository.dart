@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http_parser/http_parser.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:mime/mime.dart';
 import '../api/api_client.dart';
 import '../../domain/models/ticket_model.dart';
 import '../../core/services/cache_service.dart';
@@ -16,8 +19,21 @@ class TicketRepository {
   TicketRepository(this._apiClient);
 
   /// Fetch user's tickets with optional status filter and pagination.
-  Future<List<TicketModel>> getTickets({String? status, int page = 1, int perPage = 15}) async {
-    final cacheKey = CacheService.ticketListKey(status: status, page: page);
+  Future<List<TicketModel>> getTickets({
+    String? status,
+    String? tab,
+    String? loanStage,
+    String? search,
+    int page = 1,
+    int perPage = 15,
+  }) async {
+    final cacheKey = CacheService.ticketListKey(
+      tab: tab,
+      loanStage: loanStage,
+      status: status,
+      search: search,
+      page: page,
+    );
     try {
       final params = <String, dynamic>{
         'page': page,
@@ -25,6 +41,15 @@ class TicketRepository {
       };
       if (status != null && status.isNotEmpty) {
         params['status'] = status;
+      }
+      if (tab != null && tab.isNotEmpty) {
+        params['tab'] = tab;
+      }
+      if (loanStage != null && loanStage.isNotEmpty) {
+        params['loan_stage'] = loanStage;
+      }
+      if (search != null && search.isNotEmpty) {
+        params['search'] = search;
       }
 
       final response = await _apiClient.dio.get('/tickets', queryParameters: params);
@@ -320,20 +345,108 @@ class TicketRepository {
     }
   }
 
-  /// Return borrowed asset/device.
-  Future<void> kembalikanAlat(String ticketId, {required String kondisi, String? catatan}) async {
+  Future<MultipartFile> _buildMultipartAttachment(XFile file) async {
+    final bytes = await file.readAsBytes();
+    final mimeType =
+        lookupMimeType(file.name, headerBytes: bytes) ?? 'application/octet-stream';
+    final name = file.name.trim().isNotEmpty ? file.name.trim() : 'lampiran';
+    return MultipartFile.fromBytes(
+      bytes,
+      filename: name,
+      contentType: MediaType.parse(mimeType),
+    );
+  }
+
+  /// Get eligible loan recipients for handover (Admin).
+  Future<Map<String, dynamic>> getLoanRecipients({
+    int? ticketId,
+    String? search,
+  }) async {
+    try {
+      final response = await _apiClient.dio.get(
+        '/tickets/loan-recipients',
+        queryParameters: {
+          if (ticketId != null) 'ticket_id': ticketId,
+          if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = response.data['data'];
+        return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+      }
+      throw Exception(response.data['message'] ?? 'Gagal memuat daftar penerima alat');
+    } on DioException catch (e) {
+      throw Exception(e.response?.data['message'] ?? 'Gagal memuat daftar penerima alat');
+    }
+  }
+
+  /// Handover borrowed asset/device (Admin).
+  Future<TicketModel> serahkanAlat(
+    String ticketId, {
+    int? penerimaUserId,
+    required String kondisi,
+    String? catatan,
+    List<XFile>? attachments,
+  }) async {
     try {
       final cleanId = ticketId.replaceAll('-', '');
+      final formData = FormData.fromMap({
+        'kondisi_serah': TicketModel.normalizeKondisiKey(kondisi),
+        if (penerimaUserId != null) 'penerima_alat_user_id': penerimaUserId,
+        if (catatan != null && catatan.trim().isNotEmpty)
+          'catatan_serah': catatan.trim(),
+      });
+      if (attachments != null && attachments.isNotEmpty) {
+        for (final file in attachments.take(3)) {
+          formData.files.add(MapEntry('lampiran[]', await _buildMultipartAttachment(file)));
+        }
+      }
+      final response = await _apiClient.dio.post(
+        '/tickets/$cleanId/serahkan-alat',
+        data: formData,
+      );
+      if (response.statusCode != 200) {
+        throw Exception(response.data['message'] ?? 'Gagal menandai serah-terima alat');
+      }
+      await CacheService.removeByPrefix('ticket_');
+      return TicketModel.safeFromJson(
+        Map<String, dynamic>.from(response.data['data'] as Map),
+      );
+    } on DioException catch (e) {
+      throw Exception(e.response?.data['message'] ?? 'Gagal menandai serah-terima alat');
+    }
+  }
+
+  /// Return borrowed asset/device (Admin).
+  Future<TicketModel> kembalikanAlat(
+    String ticketId, {
+    required String kondisi,
+    String? catatan,
+    List<XFile>? attachments,
+  }) async {
+    try {
+      final cleanId = ticketId.replaceAll('-', '');
+      final formData = FormData.fromMap({
+        'kondisi_kembali': TicketModel.normalizeKondisiKey(kondisi),
+        if (catatan != null && catatan.trim().isNotEmpty)
+          'catatan_kembali': catatan.trim(),
+      });
+      if (attachments != null && attachments.isNotEmpty) {
+        for (final file in attachments.take(3)) {
+          formData.files.add(MapEntry('lampiran[]', await _buildMultipartAttachment(file)));
+        }
+      }
       final response = await _apiClient.dio.post(
         '/tickets/$cleanId/kembalikan-alat',
-        data: {
-          'kondisi_kembali': kondisi,
-          if (catatan != null && catatan.isNotEmpty) 'catatan_kembali': catatan,
-        },
+        data: formData,
       );
       if (response.statusCode != 200) {
         throw Exception(response.data['message'] ?? 'Gagal menandai pengembalian alat');
       }
+      await CacheService.removeByPrefix('ticket_');
+      return TicketModel.safeFromJson(
+        Map<String, dynamic>.from(response.data['data'] as Map),
+      );
     } on DioException catch (e) {
       throw Exception(e.response?.data['message'] ?? 'Gagal menandai pengembalian alat');
     }

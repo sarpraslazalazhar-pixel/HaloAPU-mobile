@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:halo_apu_mobile/core/services/attachment_service.dart';
 import 'package:halo_apu_mobile/presentation/widgets/auth_attachment_image.dart';
 import 'package:halo_apu_mobile/core/utils/date_formatter.dart';
@@ -17,10 +19,12 @@ import 'package:halo_apu_mobile/core/theme/app_theme.dart';
 import '../widgets/image_doodle_screen.dart';
 import 'widgets/ticket_status_timeline.dart';
 import 'widgets/chat_bubble.dart';
+import 'widgets/edit_comment_sheet.dart';
 import 'widgets/ticket_sla_card.dart';
-import 'widgets/return_asset_sheet.dart';
+import 'widgets/equipment_loan_card.dart';
 import 'widgets/revision_request_sheet.dart';
 import 'widgets/ticket_edit_history_banner.dart';
+import 'widgets/ticket_work_hours_notice.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_edit_history_model.dart';
 
 class UserTicketDetailScreen extends ConsumerStatefulWidget {
@@ -39,6 +43,8 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
   final TextEditingController _messageController = TextEditingController();
   Timer? _pollingTimer;
   bool _isSilentRefreshing = false;
+  int _detailEpoch = 0;
+  bool _pendingForcedRefresh = false;
   bool _isSending = false;
   bool _isLoadingDetail = true;
   bool _isActionLoading = false;
@@ -56,7 +62,15 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
   bool _isRevisionEnabled = false;
   late TicketModel _currentTicket;
   bool _isAdminUser = false;
+  int? _currentAdminId;
+  String _currentAdminName = '';
   List<TicketEditHistoryModel> _editHistories = const [];
+  TicketWorkHoursInfo? _workHours;
+  bool _isResumingWork = false;
+  bool get _canCancelAfterHours =>
+      _currentTicket.status == TicketStatus.pending &&
+      _workHours?.reason == 'paused' &&
+      _workHours?.resumeStatus == 'open';
 
   @override
   void initState() {
@@ -77,8 +91,35 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
 
   Future<void> _loadRole() async {
     final role = await SafeSecureStorage.read('user_role');
+    final isAdmin = role == 'admin';
+    int? adminId;
+    String adminName = '';
+
+    if (isAdmin) {
+      try {
+        String? userDataStr = await SafeSecureStorage.read('user_data');
+        if (userDataStr == null || userDataStr.isEmpty) {
+          final prefs = await SharedPreferences.getInstance();
+          userDataStr = prefs.getString('user_data');
+        }
+        if (userDataStr != null && userDataStr.isNotEmpty) {
+          final decoded = jsonDecode(userDataStr);
+          if (decoded is Map) {
+            adminId = int.tryParse((decoded['id'] ?? '').toString());
+            adminName = decoded['name']?.toString() ??
+                decoded['username']?.toString() ??
+                '';
+          }
+        }
+      } catch (_) {}
+    }
+
     if (mounted) {
-      setState(() => _isAdminUser = role == 'admin');
+      setState(() {
+        _isAdminUser = isAdmin;
+        _currentAdminId = adminId;
+        _currentAdminName = adminName;
+      });
     }
   }
 
@@ -97,50 +138,56 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
   void _startPolling() {
     _pollingTimer?.cancel();
     _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (mounted && _tabController.index == 0 && !_isLoadingDetail && !_isSending && !_isSilentRefreshing) {
+      if (mounted && (_tabController.index == 0 || _workHours != null) && !_isLoadingDetail && !_isSending && !_isSilentRefreshing) {
         _silentRefreshTicketDetail();
       }
     });
   }
 
-  Future<void> _silentRefreshTicketDetail() async {
-    if (_isSilentRefreshing) return;
+  Future<void> _silentRefreshTicketDetail({bool force = false}) async {
+    if (_isSilentRefreshing) {
+      if (force) _pendingForcedRefresh = true;
+      return;
+    }
     _isSilentRefreshing = true;
+    final startEpoch = _detailEpoch;
     try {
       final result = await _ticketService.getTicketDetail(widget.ticket.id);
-      if (mounted && result['success'] == true && result['data'] is Map) {
+      if (!mounted) return;
+      if (startEpoch != _detailEpoch) {
+        _pendingForcedRefresh = true;
+        return;
+      }
+      if (result['success'] == true && result['data'] is Map) {
         final data = Map<String, dynamic>.from(result['data'] as Map);
         final cacheKey = CacheService.ticketDetailKey(widget.ticket.id);
         await CacheService.put(cacheKey, data, ttlSeconds: 600);
-        if (mounted) _applyDetailData(data);
+        if (mounted && startEpoch == _detailEpoch) {
+          _applyDetailData(data);
+        }
       }
     } catch (e) {
       debugPrint('Silent refresh detail gagal: $e');
     } finally {
       _isSilentRefreshing = false;
+      if (_pendingForcedRefresh && mounted) {
+        _pendingForcedRefresh = false;
+        unawaited(_silentRefreshTicketDetail());
+      }
     }
   }
 
   void _applyDetailData(Map<String, dynamic> data) {
+    _detailEpoch++;
     void apply() {
       // Parse logs
       if (data['logs'] is List) {
-        _logs = (data['logs'] as List).map<TicketReply>((log) {
-          final item = log is Map ? log : <String, dynamic>{};
-          return TicketReply(
-            id: item['id'] is int ? item['id'] : int.tryParse(item['id'].toString()) ?? 0,
-            action: item['action'] ?? item['aksi'] ?? '',
-            note: item['note'] ?? item['catatan'] ?? '',
-            createdAt: parseToLocal(item['createdAt'] ?? item['created_at']),
-            adminName: item['adminName']?.toString(),
-            isFromAdmin: item['isFromAdmin'] == true,
-            attachments: item['attachments'] is List
-                ? (item['attachments'] as List)
-                    .map<Map<String, dynamic>>((a) => Map<String, dynamic>.from(a as Map))
-                    .toList()
-                : null,
-          );
-        }).toList();
+        _logs = (data['logs'] as List)
+            .whereType<Map>()
+            .map<TicketReply>(
+              (log) => TicketReply.fromJson(Map<String, dynamic>.from(log)),
+            )
+            .toList();
       }
 
       // Parse attachments
@@ -172,6 +219,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
       _revisionCount = int.tryParse((data['revisionCount'] ?? data['revision_count'] ?? 0).toString()) ?? 0;
       _isResultAccepted = (data['isResultAccepted'] ?? data['is_result_accepted']) == true;
       _isRevisionEnabled = (data['isRevisionEnabled'] ?? data['is_revision_enabled']) == true;
+      _workHours = TicketWorkHoursInfo.fromJson(data['work_hours'] ?? data['workHours']);
       // Update the current ticket with latest status
       try {
         final updated = TicketModel.safeFromJson(data);
@@ -245,6 +293,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
       case 'reject': return TicketStatus.rejected;
       case 'dibatalkan': return TicketStatus.cancelled;
       case 'need_revision': return TicketStatus.needRevision;
+      case 'pending': return TicketStatus.pending;
       default: return TicketStatus.open;
     }
   }
@@ -273,6 +322,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
       attachments: _replyAttachments.isNotEmpty ? _replyAttachments : null,
     );
     if (result['success']) {
+      _detailEpoch++;
       _messageController.clear();
       _replyAttachments.clear();
       _chatFocusNode.unfocus();
@@ -285,6 +335,56 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
       }
     }
     if (mounted) setState(() => _isSending = false);
+  }
+
+  Future<void> _showEditCommentSheet(TicketReply reply) async {
+    final updated = await EditCommentSheet.show(
+      context,
+      ticketId: _currentTicket.id,
+      reply: reply,
+      ticketService: _ticketService,
+    );
+    if (updated == null || !mounted) return;
+
+    setState(() {
+      _detailEpoch++;
+      _logs = _logs
+          .map((item) => item.id == updated.id ? updated : item)
+          .toList();
+      _currentTicket = _currentTicket.copyWith(logs: _logs);
+    });
+    unawaited(_silentRefreshTicketDetail(force: true));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Komentar berhasil diperbarui'),
+        backgroundColor: AppTheme.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  Future<void> _resumeWork() async {
+    if (_isResumingWork) return;
+    setState(() => _isResumingWork = true);
+
+    final result = await _ticketService.resumeWork(_currentTicket.id);
+    if (!mounted) return;
+
+    setState(() => _isResumingWork = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result['message']?.toString() ??
+            (result['success'] == true ? 'Tiket dilanjutkan' : 'Gagal melanjutkan tiket')),
+        backgroundColor: result['success'] == true ? AppTheme.success : AppTheme.danger,
+      ),
+    );
+
+    if (result['success'] == true) {
+      await _invalidateTicketCaches();
+      await _loadTicketDetail();
+      _refreshTicketProviders();
+    }
   }
 
   Future<void> _cancelTicket() async {
@@ -694,7 +794,7 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
           ),
         ),
         actions: [
-          if (_currentTicket.status == TicketStatus.open)
+          if (_currentTicket.status == TicketStatus.open || _canCancelAfterHours)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: AppTheme.oceanWater),
               onSelected: (value) {
@@ -731,11 +831,21 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       child: Column(
                         children: [
+                          if (_workHours != null) ...[
+                            TicketWorkHoursNotice(
+                              info: _workHours!,
+                              isAdmin: _isAdminUser,
+                              onContact: () => _tabController.animateTo(0),
+                              onResume: _workHours!.canResume ? _resumeWork : null,
+                              resuming: _isResumingWork,
+                            ),
+                            const SizedBox(height: 10),
+                          ],
                           TicketEditHistoryBanner(histories: _editHistories),
                           TicketStatusTimeline(ticket: _currentTicket),
                           const SizedBox(height: 10),
                           TicketSlaCard(ticket: _currentTicket),
-                          _buildAssetReturnCard(),
+                          _buildEquipmentLoanCard(),
                         ],
                       ),
                     ),
@@ -1247,6 +1357,10 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
   }
 
   Widget _buildChatTab() {
+    final isTicketClosed = _currentTicket.status == TicketStatus.solved ||
+        _currentTicket.status == TicketStatus.rejected ||
+        _currentTicket.status == TicketStatus.cancelled;
+
     return RefreshIndicator(
       onRefresh: _silentRefreshTicketDetail,
       child: ListView(
@@ -1264,8 +1378,12 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
           if (_logs.isNotEmpty)
             ..._logs.reversed.map((reply) => ChatBubble(
               reply: reply,
-              isCurrentUserAdmin: false,
+              isCurrentUserAdmin: _isAdminUser,
               requesterName: widget.ticket.requesterName,
+              currentAdminId: _currentAdminId,
+              currentAdminName: _currentAdminName,
+              isTicketClosed: isTicketClosed,
+              onEdit: _showEditCommentSheet,
             ))
           else
             Container(
@@ -1593,281 +1711,22 @@ class _UserTicketDetailScreenState extends ConsumerState<UserTicketDetailScreen>
       ),
     );
   }
-  Widget _buildAssetReturnCard() {
+  Widget _buildEquipmentLoanCard() {
     if (!_currentTicket.isPengembalianAlat) return const SizedBox.shrink();
-
-    final isSolved = _currentTicket.status == TicketStatus.solved;
-    if (!isSolved) return const SizedBox.shrink();
-
-    final isReturned = _currentTicket.isSudahDikembalikan;
-
-    // Kalau kendaraan sudah lewati waktu pas sudah selesai, hilangkan tombol/kartu kembalikan aset
-    if (!isReturned && _currentTicket.isKendaraan && _currentTicket.isSchedulePast) {
+    if (_currentTicket.status == TicketStatus.rejected ||
+        _currentTicket.status == TicketStatus.cancelled) {
       return const SizedBox.shrink();
     }
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isReturned
-              ? AppTheme.success.withValues(alpha: 0.35)
-              : AppTheme.warning.withValues(alpha: 0.4),
-          width: 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: AnimatedSize(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    color: (isReturned ? AppTheme.success : AppTheme.warning)
-                        .withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Icon(
-                    isReturned ? Icons.task_alt_rounded : Icons.assignment_return_outlined,
-                    size: 17,
-                    color: isReturned ? AppTheme.success : AppTheme.warning,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Status Pengembalian Alat',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isReturned
-                            ? 'Alat telah diterima kembali'
-                            : 'Tiket selesai, silakan konfirmasi pengembalian alat',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppTheme.slateGrey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (isReturned)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.success.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppTheme.success.withValues(alpha: 0.25),
-                        width: 1.0,
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.check_rounded, size: 12, color: AppTheme.success),
-                        SizedBox(width: 3),
-                        Text(
-                          'Sudah Dikembalikan',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.success,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-            if (isReturned) ...[
-              const SizedBox(height: 10),
-              const Divider(height: 1, color: Color(0xFFF1F5F9)),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFF1F5F9)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_currentTicket.kondisiKembali != null)
-                      Row(
-                        children: [
-                          const Icon(Icons.verified_outlined, size: 14, color: AppTheme.slateGrey),
-                          const SizedBox(width: 6),
-                          const Text('Kondisi: ',
-                              style: TextStyle(fontSize: 11.5, color: AppTheme.slateGrey)),
-                          Text(
-                            _currentTicket.kondisiKembali!,
-                            style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF334155)),
-                          ),
-                        ],
-                      ),
-                    if (_currentTicket.catatanKembali != null &&
-                        _currentTicket.catatanKembali!.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: AppTheme.slateGrey),
-                          const SizedBox(width: 6),
-                          const Text('Catatan: ',
-                              style: TextStyle(fontSize: 11.5, color: AppTheme.slateGrey)),
-                          Expanded(
-                            child: Text(
-                              _currentTicket.catatanKembali!,
-                              style: const TextStyle(
-                                  fontSize: 11.5, color: Color(0xFF334155)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    if (_currentTicket.dikembalikanAtFormatted != null) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.schedule_rounded, size: 14, color: AppTheme.slateGrey),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Waktu: ${_currentTicket.dikembalikanAtFormatted}',
-                            style: const TextStyle(fontSize: 11, color: AppTheme.slateGrey),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ] else ...[
-              if (!(_currentTicket.isKendaraan && _currentTicket.isSchedulePast)) ...[
-                const SizedBox(height: 12),
-                Material(
-                  color: AppTheme.oceanWater,
-                  borderRadius: BorderRadius.circular(10),
-                  child: InkWell(
-                    onTap: _handleKembalikanAlat,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      height: 40,
-                      alignment: Alignment.center,
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.assignment_return_outlined, size: 16, color: Colors.white),
-                          SizedBox(width: 6),
-                          Text(
-                            'Kembalikan Alat',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+    if (!_currentTicket.isSudahDikembalikan &&
+        _currentTicket.isKendaraan &&
+        _currentTicket.isSchedulePast) {
+      return const SizedBox.shrink();
+    }
 
-  Future<void> _handleKembalikanAlat() async {
-    await ReturnAssetSheet.show(
-      context,
-      ticketId: _currentTicket.id,
-      onConfirm: (kondisi, catatan) async {
-        final res = await _ticketService.kembalikanAlat(
-          _currentTicket.id,
-          kondisi: kondisi,
-          catatan: catatan,
-        );
-        if (!mounted) return false;
-        if (res['success'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              margin: const EdgeInsets.all(16),
-              backgroundColor: AppTheme.success,
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      res['message'] ?? 'Alat berhasil dikembalikan',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-          ref.read(userTicketProvider.notifier).refresh();
-          await _loadTicketDetail();
-          return true;
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              margin: const EdgeInsets.all(16),
-              backgroundColor: AppTheme.danger,
-              content: Row(
-                children: [
-                  const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      res['message'] ?? 'Gagal menandai pengembalian alat',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-          return false;
-        }
-      },
+    return EquipmentLoanCard(
+      ticket: _currentTicket,
+      canManage: false,
     );
   }
 }

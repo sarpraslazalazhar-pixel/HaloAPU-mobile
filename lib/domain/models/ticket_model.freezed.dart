@@ -334,7 +334,7 @@ as Map<String, dynamic>?,
 /// @nodoc
 mixin _$TicketReply {
 
- int get id; String get action; String get note; DateTime get createdAt; String? get adminName; bool get isFromAdmin; List<Map<String, dynamic>>? get attachments;
+ int get id; String get action; String get note; DateTime get createdAt; int? get adminId; String? get adminName; bool get isFromAdmin; bool get isEdited; DateTime? get editedAt; List<Map<String, dynamic>>? get attachments;
 /// Create a copy of TicketReply
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -345,16 +345,16 @@ $TicketReplyCopyWith<TicketReply> get copyWith => _$TicketReplyCopyWithImpl<Tick
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TicketReply&&(identical(other.id, id) || other.id == id)&&(identical(other.action, action) || other.action == action)&&(identical(other.note, note) || other.note == note)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.adminName, adminName) || other.adminName == adminName)&&(identical(other.isFromAdmin, isFromAdmin) || other.isFromAdmin == isFromAdmin)&&const DeepCollectionEquality().equals(other.attachments, attachments));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TicketReply&&(identical(other.id, id) || other.id == id)&&(identical(other.action, action) || other.action == action)&&(identical(other.note, note) || other.note == note)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.adminId, adminId) || other.adminId == adminId)&&(identical(other.adminName, adminName) || other.adminName == adminName)&&(identical(other.isFromAdmin, isFromAdmin) || other.isFromAdmin == isFromAdmin)&&(identical(other.isEdited, isEdited) || other.isEdited == isEdited)&&(identical(other.editedAt, editedAt) || other.editedAt == editedAt)&&const DeepCollectionEquality().equals(other.attachments, attachments));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,action,note,createdAt,adminName,isFromAdmin,const DeepCollectionEquality().hash(attachments));
+int get hashCode => Object.hash(runtimeType,id,action,note,createdAt,adminId,adminName,isFromAdmin,isEdited,editedAt,const DeepCollectionEquality().hash(attachments));
 
 @override
 String toString() {
-  return 'TicketReply(id: $id, action: $action, note: $note, createdAt: $createdAt, adminName: $adminName, isFromAdmin: $isFromAdmin, attachments: $attachments)';
+  return 'TicketReply(id: $id, action: $action, note: $note, createdAt: $createdAt, adminId: $adminId, adminName: $adminName, isFromAdmin: $isFromAdmin, isEdited: $isEdited, editedAt: $editedAt, attachments: $attachments)';
 }
 
 
@@ -365,7 +365,7 @@ abstract mixin class $TicketReplyCopyWith<$Res>  {
   factory $TicketReplyCopyWith(TicketReply value, $Res Function(TicketReply) _then) = _$TicketReplyCopyWithImpl;
 @useResult
 $Res call({
- int id, String action, String note, DateTime createdAt, String? adminName, bool isFromAdmin, List<Map<String, dynamic>>? attachments
+ int id, String action, String note, DateTime createdAt, int? adminId, String? adminName, bool isFromAdmin, bool isEdited, DateTime? editedAt, List<Map<String, dynamic>>? attachments
 });
 
 
@@ -382,15 +382,18 @@ class _$TicketReplyCopyWithImpl<$Res>
 
 /// Create a copy of TicketReply
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? action = null,Object? note = null,Object? createdAt = null,Object? adminName = freezed,Object? isFromAdmin = null,Object? attachments = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? action = null,Object? note = null,Object? createdAt = null,Object? adminId = freezed,Object? adminName = freezed,Object? isFromAdmin = null,Object? isEdited = null,Object? editedAt = freezed,Object? attachments = freezed,}) {
   return _then(TicketReply(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,action: null == action ? _self.action : action // ignore: cast_nullable_to_non_nullable
 as String,note: null == note ? _self.note : note // ignore: cast_nullable_to_non_nullable
 as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as DateTime,adminName: freezed == adminName ? _self.adminName : adminName // ignore: cast_nullable_to_non_nullable
+as DateTime,adminId: freezed == adminId ? _self.adminId : adminId // ignore: cast_nullable_to_non_nullable
+as int?,adminName: freezed == adminName ? _self.adminName : adminName // ignore: cast_nullable_to_non_nullable
 as String?,isFromAdmin: null == isFromAdmin ? _self.isFromAdmin : isFromAdmin // ignore: cast_nullable_to_non_nullable
-as bool,attachments: freezed == attachments ? _self.attachments : attachments // ignore: cast_nullable_to_non_nullable
+as bool,isEdited: null == isEdited ? _self.isEdited : isEdited // ignore: cast_nullable_to_non_nullable
+as bool,editedAt: freezed == editedAt ? _self.editedAt : editedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,attachments: freezed == attachments ? _self.attachments : attachments // ignore: cast_nullable_to_non_nullable
 as List<Map<String, dynamic>>?,
   ));
 }
@@ -473,10 +476,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String action,  String note,  DateTime createdAt,  String? adminName,  bool isFromAdmin,  List<Map<String, dynamic>>? attachments)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String action,  String note,  DateTime createdAt,  int? adminId,  String? adminName,  bool isFromAdmin,  bool isEdited,  DateTime? editedAt,  List<Map<String, dynamic>>? attachments)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TicketReply() when $default != null:
-return $default(_that.id,_that.action,_that.note,_that.createdAt,_that.adminName,_that.isFromAdmin,_that.attachments);case _:
+return $default(_that.id,_that.action,_that.note,_that.createdAt,_that.adminId,_that.adminName,_that.isFromAdmin,_that.isEdited,_that.editedAt,_that.attachments);case _:
   return orElse();
 
 }
@@ -494,10 +497,10 @@ return $default(_that.id,_that.action,_that.note,_that.createdAt,_that.adminName
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String action,  String note,  DateTime createdAt,  String? adminName,  bool isFromAdmin,  List<Map<String, dynamic>>? attachments)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String action,  String note,  DateTime createdAt,  int? adminId,  String? adminName,  bool isFromAdmin,  bool isEdited,  DateTime? editedAt,  List<Map<String, dynamic>>? attachments)  $default,) {final _that = this;
 switch (_that) {
 case _TicketReply():
-return $default(_that.id,_that.action,_that.note,_that.createdAt,_that.adminName,_that.isFromAdmin,_that.attachments);}
+return $default(_that.id,_that.action,_that.note,_that.createdAt,_that.adminId,_that.adminName,_that.isFromAdmin,_that.isEdited,_that.editedAt,_that.attachments);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -511,10 +514,10 @@ return $default(_that.id,_that.action,_that.note,_that.createdAt,_that.adminName
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String action,  String note,  DateTime createdAt,  String? adminName,  bool isFromAdmin,  List<Map<String, dynamic>>? attachments)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String action,  String note,  DateTime createdAt,  int? adminId,  String? adminName,  bool isFromAdmin,  bool isEdited,  DateTime? editedAt,  List<Map<String, dynamic>>? attachments)?  $default,) {final _that = this;
 switch (_that) {
 case _TicketReply() when $default != null:
-return $default(_that.id,_that.action,_that.note,_that.createdAt,_that.adminName,_that.isFromAdmin,_that.attachments);case _:
+return $default(_that.id,_that.action,_that.note,_that.createdAt,_that.adminId,_that.adminName,_that.isFromAdmin,_that.isEdited,_that.editedAt,_that.attachments);case _:
   return null;
 
 }
@@ -526,15 +529,18 @@ return $default(_that.id,_that.action,_that.note,_that.createdAt,_that.adminName
 
 
 class _TicketReply implements TicketReply {
-  const _TicketReply({required this.id, required this.action, required this.note, required this.createdAt, this.adminName, required this.isFromAdmin,  List<Map<String, dynamic>>? attachments}): _attachments = attachments;
+  const _TicketReply({required this.id, required this.action, required this.note, required this.createdAt, this.adminId, this.adminName, required this.isFromAdmin, this.isEdited = false, this.editedAt,  List<Map<String, dynamic>>? attachments}): _attachments = attachments;
   
 
 @override final  int id;
 @override final  String action;
 @override final  String note;
 @override final  DateTime createdAt;
+@override final  int? adminId;
 @override final  String? adminName;
 @override final  bool isFromAdmin;
+@override@JsonKey() final  bool isEdited;
+@override final  DateTime? editedAt;
  final  List<Map<String, dynamic>>? _attachments;
 @override List<Map<String, dynamic>>? get attachments {
   final value = _attachments;
@@ -555,16 +561,16 @@ _$TicketReplyCopyWith<_TicketReply> get copyWith => __$TicketReplyCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TicketReply&&(identical(other.id, id) || other.id == id)&&(identical(other.action, action) || other.action == action)&&(identical(other.note, note) || other.note == note)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.adminName, adminName) || other.adminName == adminName)&&(identical(other.isFromAdmin, isFromAdmin) || other.isFromAdmin == isFromAdmin)&&const DeepCollectionEquality().equals(other._attachments, _attachments));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TicketReply&&(identical(other.id, id) || other.id == id)&&(identical(other.action, action) || other.action == action)&&(identical(other.note, note) || other.note == note)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.adminId, adminId) || other.adminId == adminId)&&(identical(other.adminName, adminName) || other.adminName == adminName)&&(identical(other.isFromAdmin, isFromAdmin) || other.isFromAdmin == isFromAdmin)&&(identical(other.isEdited, isEdited) || other.isEdited == isEdited)&&(identical(other.editedAt, editedAt) || other.editedAt == editedAt)&&const DeepCollectionEquality().equals(other._attachments, _attachments));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,action,note,createdAt,adminName,isFromAdmin,const DeepCollectionEquality().hash(_attachments));
+int get hashCode => Object.hash(runtimeType,id,action,note,createdAt,adminId,adminName,isFromAdmin,isEdited,editedAt,const DeepCollectionEquality().hash(_attachments));
 
 @override
 String toString() {
-  return 'TicketReply(id: $id, action: $action, note: $note, createdAt: $createdAt, adminName: $adminName, isFromAdmin: $isFromAdmin, attachments: $attachments)';
+  return 'TicketReply(id: $id, action: $action, note: $note, createdAt: $createdAt, adminId: $adminId, adminName: $adminName, isFromAdmin: $isFromAdmin, isEdited: $isEdited, editedAt: $editedAt, attachments: $attachments)';
 }
 
 
@@ -575,7 +581,7 @@ abstract mixin class _$TicketReplyCopyWith<$Res> implements $TicketReplyCopyWith
   factory _$TicketReplyCopyWith(_TicketReply value, $Res Function(_TicketReply) _then) = __$TicketReplyCopyWithImpl;
 @override @useResult
 $Res call({
- int id, String action, String note, DateTime createdAt, String? adminName, bool isFromAdmin, List<Map<String, dynamic>>? attachments
+ int id, String action, String note, DateTime createdAt, int? adminId, String? adminName, bool isFromAdmin, bool isEdited, DateTime? editedAt, List<Map<String, dynamic>>? attachments
 });
 
 
@@ -592,15 +598,18 @@ class __$TicketReplyCopyWithImpl<$Res>
 
 /// Create a copy of TicketReply
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? action = null,Object? note = null,Object? createdAt = null,Object? adminName = freezed,Object? isFromAdmin = null,Object? attachments = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? action = null,Object? note = null,Object? createdAt = null,Object? adminId = freezed,Object? adminName = freezed,Object? isFromAdmin = null,Object? isEdited = null,Object? editedAt = freezed,Object? attachments = freezed,}) {
   return _then(_TicketReply(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,action: null == action ? _self.action : action // ignore: cast_nullable_to_non_nullable
 as String,note: null == note ? _self.note : note // ignore: cast_nullable_to_non_nullable
 as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as DateTime,adminName: freezed == adminName ? _self.adminName : adminName // ignore: cast_nullable_to_non_nullable
+as DateTime,adminId: freezed == adminId ? _self.adminId : adminId // ignore: cast_nullable_to_non_nullable
+as int?,adminName: freezed == adminName ? _self.adminName : adminName // ignore: cast_nullable_to_non_nullable
 as String?,isFromAdmin: null == isFromAdmin ? _self.isFromAdmin : isFromAdmin // ignore: cast_nullable_to_non_nullable
-as bool,attachments: freezed == attachments ? _self._attachments : attachments // ignore: cast_nullable_to_non_nullable
+as bool,isEdited: null == isEdited ? _self.isEdited : isEdited // ignore: cast_nullable_to_non_nullable
+as bool,editedAt: freezed == editedAt ? _self.editedAt : editedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,attachments: freezed == attachments ? _self._attachments : attachments // ignore: cast_nullable_to_non_nullable
 as List<Map<String, dynamic>>?,
   ));
 }

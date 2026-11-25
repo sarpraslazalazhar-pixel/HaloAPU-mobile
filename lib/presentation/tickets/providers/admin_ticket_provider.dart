@@ -11,7 +11,12 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
   List<TicketModel> _allTickets = [];
   List<String>? _currentStatuses;
   String? _searchQuery;
-  String _currentTab = 'masuk'; // 'masuk' (Antrean Unit) or 'saya_ajukan' (Tiket Saya)
+  String _currentTab = 'masuk'; // 'masuk', 'saya_ajukan', atau 'peminjaman_alat'
+  bool _canViewEquipmentLoans = false;
+  int _peminjamanAlatCount = 0;
+  String _loanStage = 'aktif';
+  Map<String, int> _loanStageCounts = const {};
+
   AdminTicketNotifier() : super(const AsyncValue.loading()) {
     _loadInitial();
   }
@@ -19,10 +24,22 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
   bool get hasMore => _hasMore;
   bool get isLoadingMore => _isLoadingMore;
   String get currentTab => _currentTab;
+  bool get canViewEquipmentLoans => _canViewEquipmentLoans;
+  int get peminjamanAlatCount => _peminjamanAlatCount;
+  String get loanStage => _loanStage;
+  Map<String, int> get loanStageCounts => _loanStageCounts;
 
   void setTab(String tab) {
     if (_currentTab == tab) return;
     _currentTab = tab;
+    _currentStatuses = null;
+    _loadInitial();
+  }
+
+  void setLoanStage(String stage) {
+    if (_loanStage == stage && _currentTab == 'peminjaman_alat') return;
+    _loanStage = stage;
+    _currentTab = 'peminjaman_alat';
     _currentStatuses = null;
     _loadInitial();
   }
@@ -70,8 +87,10 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     _allTickets.clear();
 
     // Stale-while-revalidate: tampilkan cache dulu jika tersedia
+    final activeLoanStage = _currentTab == 'peminjaman_alat' ? _loanStage : null;
     final cacheKey = CacheService.ticketListKey(
       tab: _currentTab,
+      loanStage: activeLoanStage,
       status: _currentStatuses?.join(','),
       search: _searchQuery,
       page: _currentPage,
@@ -86,18 +105,42 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
 
     // Fetch data terbaru dari server di background
     final result = await _ticketService.getTickets(
-      page: _currentPage, 
-      statuses: _currentStatuses,
+      page: _currentPage,
+      statuses: _currentTab == 'peminjaman_alat' ? null : _currentStatuses,
       search: _searchQuery,
       tab: _currentTab,
+      loanStage: activeLoanStage,
     );
     if (result['success']) {
       final List<dynamic> data = result['data'];
       _allTickets = data.map((json) => TicketModel.safeFromJson(json)).toList();
-      
-      final meta = result['meta'];
-      _hasMore = _currentPage < (meta['last_page'] ?? 1);
-      
+
+      final meta = result['meta'] is Map
+          ? Map<String, dynamic>.from(result['meta'] as Map)
+          : const <String, dynamic>{};
+      _hasMore = _currentPage < ((meta['last_page'] as num?)?.toInt() ?? 1);
+      if (meta.containsKey('can_view_equipment_loans')) {
+        _canViewEquipmentLoans = meta['can_view_equipment_loans'] == true;
+      }
+      if (meta.containsKey('peminjaman_alat_count')) {
+        _peminjamanAlatCount =
+            int.tryParse(meta['peminjaman_alat_count'].toString()) ?? 0;
+      }
+      if (meta['current_tab'] is String &&
+          (meta['current_tab'] as String).isNotEmpty) {
+        _currentTab = meta['current_tab'] as String;
+      }
+      if (meta['loan_stage'] is String &&
+          (meta['loan_stage'] as String).isNotEmpty) {
+        _loanStage = meta['loan_stage'] as String;
+      }
+      if (meta['loan_stage_counts'] is Map) {
+        final rawCounts = Map<String, dynamic>.from(meta['loan_stage_counts'] as Map);
+        _loanStageCounts = rawCounts.map(
+          (k, v) => MapEntry(k, int.tryParse(v.toString()) ?? 0),
+        );
+      }
+
       state = AsyncValue.data(_allTickets);
 
       // Simpan ke cache (TTL 5 menit)
@@ -128,11 +171,13 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     _isLoadingMore = true;
     _currentPage++;
 
+    final activeLoanStage = _currentTab == 'peminjaman_alat' ? _loanStage : null;
     final result = await _ticketService.getTickets(
-      page: _currentPage, 
-      statuses: _currentStatuses,
+      page: _currentPage,
+      statuses: _currentTab == 'peminjaman_alat' ? null : _currentStatuses,
       search: _searchQuery,
       tab: _currentTab,
+      loanStage: activeLoanStage,
     );
     if (result['success']) {
       final List<dynamic> data = result['data'];
@@ -148,6 +193,7 @@ class AdminTicketNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
       await CacheService.put(
         CacheService.ticketListKey(
           tab: _currentTab,
+          loanStage: activeLoanStage,
           status: _currentStatuses?.join(','),
           search: _searchQuery,
           page: _currentPage,

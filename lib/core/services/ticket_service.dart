@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../storage/secure_storage_helper.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
+import '../../domain/models/ticket_model.dart';
 import '../config/api_config.dart';
 import 'session_manager.dart';
 
@@ -143,6 +144,7 @@ class TicketService {
     String? dateTo,
     String? search,
     String? tab,
+    String? loanStage,
     int page = 1,
   }) async {
     try {
@@ -152,6 +154,7 @@ class TicketService {
         if (dateTo != null) 'date_to': dateTo,
         if (search != null && search.isNotEmpty) 'search': search,
         if (tab != null && tab.isNotEmpty) 'tab': tab,
+        if (loanStage != null && loanStage.isNotEmpty) 'loan_stage': loanStage,
       };
       if (statuses != null && statuses.isNotEmpty) {
         queryParameters['status'] = statuses.join(',');
@@ -385,6 +388,55 @@ class TicketService {
     }
   }
 
+  /// Edit an existing ticket reply comment
+  Future<Map<String, dynamic>> editTicketReply(
+    String id,
+    int logId,
+    String note,
+  ) async {
+    final trimmed = note.trim();
+    if (trimmed.isEmpty) {
+      return {'success': false, 'message': 'Komentar tidak boleh kosong.'};
+    }
+    try {
+      final cleanId = id.replaceAll('-', '');
+      final response = await _dio.patch(
+        '/tickets/$cleanId/reply/$logId',
+        data: {'catatan': trimmed},
+      );
+      final body = _body(response);
+      return {
+        'success': true,
+        'data': body['data'],
+        'message': body['message']?.toString() ?? 'Komentar berhasil diperbarui',
+      };
+    } on DioException catch (e) {
+      final statusCode = e.response?.statusCode;
+      String fallback;
+      if (statusCode == 403) {
+        fallback = 'Anda tidak memiliki izin untuk mengedit komentar ini.';
+      } else if (statusCode == 404) {
+        fallback = 'Komentar atau tiket tidak ditemukan.';
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.connectionError) {
+        fallback = 'Koneksi bermasalah. Periksa jaringan Anda dan coba lagi.';
+      } else {
+        fallback = 'Gagal memperbarui komentar.';
+      }
+      return {
+        'success': false,
+        'message': _errorMessage(e.response?.data, fallback),
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal memperbarui komentar: $e',
+      };
+    }
+  }
+
   /// Cancel a ticket (only if status == 'open')
   Future<Map<String, dynamic>> cancelTicket(String id) async {
     try {
@@ -516,16 +568,125 @@ class TicketService {
     }
   }
 
-  Future<Map<String, dynamic>> kembalikanAlat(String id, {required String kondisi, String? catatan}) async {
+  Future<Map<String, dynamic>> getLoanRecipients({
+    int? ticketId,
+    String? search,
+  }) async {
+    try {
+      final queryParameters = <String, dynamic>{
+        if (ticketId != null) 'ticket_id': ticketId,
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+      };
+      final response = await _dio.get(
+        '/tickets/loan-recipients',
+        queryParameters: queryParameters,
+      );
+      return {'success': true, 'data': _body(response)['data']};
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'statusCode': e.response?.statusCode,
+        'message': e.response?.statusCode == 401
+            ? SessionManager.extractUnauthorizedMessage(e.response?.data)
+            : _errorMessage(e.response?.data, 'Gagal memuat daftar penerima alat'),
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal memuat daftar penerima alat: $e',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> serahkanAlat(
+    String id, {
+    int? penerimaUserId,
+    required String kondisi,
+    String? catatan,
+    List<XFile>? attachments,
+  }) async {
     try {
       final cleanId = id.replaceAll('-', '');
-      final response = await _dio.post('/tickets/$cleanId/kembalikan-alat', data: {
-        'kondisi_kembali': kondisi,
-        if (catatan != null && catatan.isNotEmpty) 'catatan_kembali': catatan,
+      final formData = FormData.fromMap({
+        'kondisi_serah': TicketModel.normalizeKondisiKey(kondisi),
+        if (penerimaUserId != null) 'penerima_alat_user_id': penerimaUserId,
+        if (catatan != null && catatan.trim().isNotEmpty)
+          'catatan_serah': catatan.trim(),
       });
-      return {'success': true, 'message': _body(response)['message'] ?? 'Alat berhasil dikembalikan'};
+
+      if (attachments != null && attachments.isNotEmpty) {
+        for (final file in attachments.take(3)) {
+          final multipartFile = await _createMultipartFile(file);
+          formData.files.add(MapEntry('lampiran[]', multipartFile));
+        }
+      }
+
+      final response =
+          await _dio.post('/tickets/$cleanId/serahkan-alat', data: formData);
+      final body = _body(response);
+      return {
+        'success': true,
+        'data': body['data'],
+        'message': body['message'] ?? 'Alat berhasil ditandai sudah diserahkan',
+      };
     } on DioException catch (e) {
-      return {'success': false, 'message': _errorMessage(e.response?.data, 'Gagal menandai pengembalian alat')};
+      return {
+        'success': false,
+        'statusCode': e.response?.statusCode,
+        'message': e.response?.statusCode == 401
+            ? SessionManager.extractUnauthorizedMessage(e.response?.data)
+            : _errorMessage(e.response?.data, 'Gagal menandai serah-terima alat'),
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal menandai serah-terima alat: $e',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> kembalikanAlat(
+    String id, {
+    required String kondisi,
+    String? catatan,
+    List<XFile>? attachments,
+  }) async {
+    try {
+      final cleanId = id.replaceAll('-', '');
+      final formData = FormData.fromMap({
+        'kondisi_kembali': TicketModel.normalizeKondisiKey(kondisi),
+        if (catatan != null && catatan.trim().isNotEmpty)
+          'catatan_kembali': catatan.trim(),
+      });
+
+      if (attachments != null && attachments.isNotEmpty) {
+        for (final file in attachments.take(3)) {
+          final multipartFile = await _createMultipartFile(file);
+          formData.files.add(MapEntry('lampiran[]', multipartFile));
+        }
+      }
+
+      final response =
+          await _dio.post('/tickets/$cleanId/kembalikan-alat', data: formData);
+      final body = _body(response);
+      return {
+        'success': true,
+        'data': body['data'],
+        'message': body['message'] ?? 'Alat berhasil dikembalikan',
+      };
+    } on DioException catch (e) {
+      return {
+        'success': false,
+        'statusCode': e.response?.statusCode,
+        'message': e.response?.statusCode == 401
+            ? SessionManager.extractUnauthorizedMessage(e.response?.data)
+            : _errorMessage(e.response?.data, 'Gagal menandai pengembalian alat'),
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal menandai pengembalian alat: $e',
+      };
     }
   }
 

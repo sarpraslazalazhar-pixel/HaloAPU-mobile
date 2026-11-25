@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:halo_apu_mobile/core/services/cache_service.dart';
 import 'package:halo_apu_mobile/core/services/session_manager.dart';
+import 'package:halo_apu_mobile/core/services/ticket_service.dart';
+import 'package:halo_apu_mobile/core/theme/app_theme.dart';
+import 'package:halo_apu_mobile/presentation/dashboard/providers/monitor_provider.dart';
 import 'package:halo_apu_mobile/presentation/widgets/app_error_view.dart';
 import 'package:halo_apu_mobile/presentation/widgets/shimmer.dart';
 import 'package:halo_apu_mobile/domain/models/ticket_model.dart';
 import '../widgets/custom_bottom_nav.dart';
 import 'providers/admin_ticket_provider.dart';
+import 'widgets/handover_asset_sheet.dart';
+import 'widgets/return_asset_sheet.dart';
 import 'widgets/ticket_card.dart';
 import '../widgets/pagination_footer.dart';
 import 'dart:async';
@@ -26,6 +32,14 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
   String _activeTab = 'masuk';
   String _selectedFilter = 'Semua';
   final List<String> _filters = ['Semua', 'Aktif', 'Terbuka', 'Diproses', 'Perlu Revisi', 'Tertunda', 'Selesai', 'Ditolak'];
+  static const List<({String key, String label})> _loanStageFilters = [
+    (key: 'aktif', label: 'Perlu Tindakan'),
+    (key: 'menunggu_diserahkan', label: 'Menunggu Dikasih'),
+    (key: 'sedang_dipinjam', label: 'Sedang Dipinjam'),
+    (key: 'dikembalikan', label: 'Sudah Dikembalikan'),
+    (key: 'semua', label: 'Semua'),
+  ];
+  final TicketService _ticketService = TicketService();
   bool _isLoadingMore = false;
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
@@ -34,7 +48,10 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    if (widget.initialTab != null && (widget.initialTab == 'masuk' || widget.initialTab == 'saya_ajukan')) {
+    if (widget.initialTab != null &&
+        (widget.initialTab == 'masuk' ||
+            widget.initialTab == 'saya_ajukan' ||
+            widget.initialTab == 'peminjaman_alat')) {
       _activeTab = widget.initialTab!;
     }
     final filter = widget.initialFilter == 'Menunggu' ? 'Terbuka' : widget.initialFilter;
@@ -80,9 +97,181 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
     return tickets;
   }
 
+  Future<void> _handleQuickHandover(TicketModel ticket) async {
+    await HandoverAssetSheet.show(
+      context,
+      ticketId: ticket.id,
+      borrowerName: ticket.requesterName,
+      equipmentText: ticket.alatText,
+      scheduleText: ticket.rentangWaktu,
+      onConfirm: (penerimaUserId, kondisi, catatan, attachments) async {
+        final res = await _ticketService.serahkanAlat(
+          ticket.id,
+          penerimaUserId: penerimaUserId,
+          kondisi: kondisi,
+          catatan: catatan,
+          attachments: attachments,
+        );
+        if (!mounted) return false;
+        if (res['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: AppTheme.success,
+              content: Text(
+                res['message']?.toString() ??
+                    'Alat berhasil ditandai sudah diserahkan',
+              ),
+            ),
+          );
+          await CacheService.removeByPrefix('ticket_');
+          ref.read(adminTicketProvider.notifier).refresh();
+          ref.read(monitorProvider.notifier).refresh();
+          return true;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppTheme.danger,
+            content: Text(
+              res['message']?.toString() ?? 'Gagal menandai serah-terima alat',
+            ),
+          ),
+        );
+        return false;
+      },
+    );
+  }
+
+  Future<void> _handleQuickReturn(TicketModel ticket) async {
+    await ReturnAssetSheet.show(
+      context,
+      ticketId: ticket.id,
+      hasHandedOver: ticket.isSudahDiserahkan,
+      borrowerName: ticket.requesterName,
+      equipmentText: ticket.alatText,
+      scheduleText: ticket.rentangWaktu,
+      onConfirm: (kondisi, catatan, attachments) async {
+        final res = await _ticketService.kembalikanAlat(
+          ticket.id,
+          kondisi: kondisi,
+          catatan: catatan,
+          attachments: attachments,
+        );
+        if (!mounted) return false;
+        if (res['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: AppTheme.success,
+              content: Text(
+                res['message']?.toString() ?? 'Alat berhasil dikembalikan',
+              ),
+            ),
+          );
+          await CacheService.removeByPrefix('ticket_');
+          ref.read(adminTicketProvider.notifier).refresh();
+          ref.read(monitorProvider.notifier).refresh();
+          return true;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppTheme.danger,
+            content: Text(
+              res['message']?.toString() ??
+                  'Gagal menandai pengembalian alat',
+            ),
+          ),
+        );
+        return false;
+      },
+    );
+  }
+
+  Widget _buildTabButton({
+    required String tabKey,
+    required String activeTab,
+    required IconData icon,
+    required String label,
+    int? badgeCount,
+  }) {
+    final isSelected = activeTab == tabKey;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          if (activeTab == tabKey) return;
+          setState(() {
+            _activeTab = tabKey;
+            _selectedFilter = 'Semua';
+          });
+          ref.read(adminTicketProvider.notifier).setTab(tabKey);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF00768C) : Colors.transparent,
+            borderRadius: BorderRadius.circular(25),
+          ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 15,
+                color: isSelected ? Colors.white : Colors.grey.shade700,
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.grey.shade700,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              if (badgeCount != null && badgeCount > 0) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.25)
+                        : const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$badgeCount',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? Colors.white : const Color(0xFFB45309),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ticketState = ref.watch(adminTicketProvider);
+    final notifier = ref.read(adminTicketProvider.notifier);
+    final canViewLoans = notifier.canViewEquipmentLoans;
+    final effectiveTab = (!canViewLoans && _activeTab == 'peminjaman_alat')
+        ? 'masuk'
+        : _activeTab;
+    final isLoanTab = effectiveTab == 'peminjaman_alat';
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -94,7 +283,7 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
       ),
       body: Column(
         children: [
-          // Tab Switcher: Antrean Unit vs Tiket Saya
+          // Tab Switcher: Antrean Unit vs Tiket Saya (+ Pinjam Alat bila berhak)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
             child: Container(
@@ -104,96 +293,26 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
               ),
               child: Row(
                 children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        if (_activeTab == 'masuk') return;
-                        setState(() {
-                          _activeTab = 'masuk';
-                          _selectedFilter = 'Semua';
-                        });
-                        ref.read(adminTicketProvider.notifier).setTab('masuk');
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: _activeTab == 'masuk'
-                              ? const Color(0xFF00768C)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                        alignment: Alignment.center,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.inbox_rounded,
-                              size: 16,
-                              color: _activeTab == 'masuk'
-                                  ? Colors.white
-                                  : Colors.grey.shade700,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Antrean Unit',
-                              style: TextStyle(
-                                color: _activeTab == 'masuk'
-                                    ? Colors.white
-                                    : Colors.grey.shade700,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  _buildTabButton(
+                    tabKey: 'masuk',
+                    activeTab: effectiveTab,
+                    icon: Icons.inbox_rounded,
+                    label: 'Antrean Unit',
                   ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        if (_activeTab == 'saya_ajukan') return;
-                        setState(() {
-                          _activeTab = 'saya_ajukan';
-                          _selectedFilter = 'Semua';
-                        });
-                        ref.read(adminTicketProvider.notifier).setTab('saya_ajukan');
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: _activeTab == 'saya_ajukan'
-                              ? const Color(0xFF00768C)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                        alignment: Alignment.center,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.send_rounded,
-                              size: 16,
-                              color: _activeTab == 'saya_ajukan'
-                                  ? Colors.white
-                                  : Colors.grey.shade700,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Tiket Saya',
-                              style: TextStyle(
-                                color: _activeTab == 'saya_ajukan'
-                                    ? Colors.white
-                                    : Colors.grey.shade700,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  _buildTabButton(
+                    tabKey: 'saya_ajukan',
+                    activeTab: effectiveTab,
+                    icon: Icons.send_rounded,
+                    label: 'Tiket Saya',
                   ),
+                  if (canViewLoans)
+                    _buildTabButton(
+                      tabKey: 'peminjaman_alat',
+                      activeTab: effectiveTab,
+                      icon: Icons.inventory_2_outlined,
+                      label: 'Pinjam Alat',
+                      badgeCount: notifier.peminjamanAlatCount,
+                    ),
                 ],
               ),
             ),
@@ -234,41 +353,81 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
               ),
             ),
           ),
-          // Filter Chips
+          // Filter Chips (Status biasa atau 5 sub-filter Pinjam Alat)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: _filters.map((filter) {
-                final isSelected = _selectedFilter == filter;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(filter),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      setState(() {
-                        _selectedFilter = filter;
-                      });
-                      ref.read(adminTicketProvider.notifier).setFilter(filter);
-                    },
-                    backgroundColor: Colors.grey.shade100,
-                    selectedColor: const Color(0xFF00B8D9).withValues(alpha: 0.2),
-                    checkmarkColor: const Color(0xFF00B8D9),
-                    labelStyle: TextStyle(
-                      color: isSelected ? const Color(0xFF0066FF) : Colors.grey.shade700,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: BorderSide(
-                        color: isSelected ? const Color(0xFF00B8D9) : Colors.transparent,
-                      ),
-                    ),
+            child: isLoanTab
+                ? Row(
+                    children: _loanStageFilters.map((stage) {
+                      final isSelected = notifier.loanStage == stage.key;
+                      final stageCount = notifier.loanStageCounts[stage.key];
+                      final label = stageCount != null
+                          ? '${stage.label} ($stageCount)'
+                          : stage.label;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(label),
+                          selected: isSelected,
+                          onSelected: (_) {
+                            notifier.setLoanStage(stage.key);
+                          },
+                          backgroundColor: Colors.grey.shade100,
+                          selectedColor:
+                              const Color(0xFF00B8D9).withValues(alpha: 0.2),
+                          checkmarkColor: const Color(0xFF00B8D9),
+                          labelStyle: TextStyle(
+                            color: isSelected
+                                ? const Color(0xFF0066FF)
+                                : Colors.grey.shade700,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? const Color(0xFF00B8D9)
+                                  : Colors.transparent,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  )
+                : Row(
+                    children: _filters.map((filter) {
+                      final isSelected = _selectedFilter == filter;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(filter),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              _selectedFilter = filter;
+                            });
+                            ref.read(adminTicketProvider.notifier).setFilter(filter);
+                          },
+                          backgroundColor: Colors.grey.shade100,
+                          selectedColor: const Color(0xFF00B8D9).withValues(alpha: 0.2),
+                          checkmarkColor: const Color(0xFF00B8D9),
+                          labelStyle: TextStyle(
+                            color: isSelected ? const Color(0xFF0066FF) : Colors.grey.shade700,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isSelected ? const Color(0xFF00B8D9) : Colors.transparent,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
-                );
-              }).toList(),
-            ),
           ),
           
           // Ticket List
@@ -300,7 +459,11 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
                                 Icon(Icons.inbox_outlined, size: 64, color: Colors.grey.shade400),
                                 const SizedBox(height: 16),
                                 Text(
-                                  _activeTab == 'saya_ajukan' ? 'Belum ada tiket yang Anda ajukan' : 'Belum ada tiket di unit ini',
+                                  effectiveTab == 'saya_ajukan'
+                                      ? 'Belum ada tiket yang Anda ajukan'
+                                      : (isLoanTab
+                                          ? 'Belum ada tiket peminjaman alat pada tahap ini'
+                                          : 'Belum ada tiket di unit ini'),
                                   style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
                                 ),
                               ],
@@ -329,8 +492,15 @@ class _AdminTicketListScreenState extends ConsumerState<AdminTicketListScreen> {
                       final ticket = filteredTickets[index];
                       return TicketCard(
                         ticket: ticket,
+                        showLoanDetails: isLoanTab,
+                        onQuickHandover: isLoanTab && ticket.canSerahkan
+                            ? () => _handleQuickHandover(ticket)
+                            : null,
+                        onQuickReturn: isLoanTab && ticket.canKembalikan
+                            ? () => _handleQuickReturn(ticket)
+                            : null,
                         onTap: () {
-                          if (_activeTab == 'saya_ajukan') {
+                          if (effectiveTab == 'saya_ajukan') {
                             context.push('/tickets/user/detail', extra: ticket);
                           } else {
                             context.push('/tickets/admin/detail', extra: ticket);
